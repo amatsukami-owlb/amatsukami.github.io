@@ -1,6 +1,6 @@
 {
   "name": "DnD Danil Edition",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Панель ресурсов и способностей классов",
   "manifest_version": 1,
   "action": {
@@ -9,11 +9,5 @@
     "icon": "https://amatsukami-owlb.github.io/amatsukami.github.io/icon.svg",
     "width": 400,
     "height": 500
-  },
-  "permissions": [
-    {
-      "name": "autoplay",
-      "reason": "Необходимо для базовой инициализации фрейма приложения"
-    }
-  ]
+  }
 }

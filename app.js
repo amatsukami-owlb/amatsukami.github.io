@@ -16,10 +16,7 @@ const CLASS_DATA = {
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
 function startPlugin() {
-    // Если OBR всё еще не готов, ждем следующего цикла
     if (typeof OBR === "undefined") return;
-
-    // Как только OBR появился — останавливаем проверку и запускаем плагин
     clearInterval(checkObrInterval);
 
     OBR.onReady(async () => {
@@ -41,10 +38,7 @@ function startPlugin() {
     });
 }
 
-// Запускаем постоянную проверку каждую 1/10 секунды
 const checkObrInterval = setInterval(startPlugin, 100);
-
-
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER VIEW)
@@ -167,7 +161,6 @@ async function refreshGmPanel() {
     }
 }
 
-// Вынос обработчиков кликов отдельно, чтобы не вешать их заново при каждой перерисовке таблицы
 function setupGmActions() {
     const assignBtn = document.getElementById("assign-btn");
     const restBtn = document.getElementById("rest-btn");
@@ -206,7 +199,6 @@ function setupGmActions() {
         };
     }
 
-    // ЛОГИКА РУЧНОГО ВВОДА РЕСУРСА
     if (saveResBtn && select) {
         saveResBtn.onclick = async () => {
             const targetId = select.value;
@@ -218,7 +210,6 @@ function setupGmActions() {
 
             if (state && state.classType !== "none" && CLASS_DATA[state.classType]) {
                 const maxRes = CLASS_DATA[state.classType].maxResource;
-                // Ограничиваем ввод: не меньше 0 и не больше максимума класса
                 let val = parseInt(inputField.value, 10);
                 if (isNaN(val)) return;
                 val = Math.max(0, Math.min(maxRes, val));
@@ -226,7 +217,7 @@ function setupGmActions() {
                 const newState = { ...state, currentResource: val };
                 await updateUserMetadata(targetId, newState);
                 
-                inputField.value = ""; // Очищаем поле ввода
+                inputField.value = ""; 
                 await refreshGmPanel();
             } else {
                 alert("Нельзя установить ресурс персонажу без назначенного класса!");
@@ -235,7 +226,6 @@ function setupGmActions() {
     }
 }
 
-// Хелпер: Безопасная отправка данных игроку или самому себе (ГМу)
 async function updateUserMetadata(targetId, newState) {
     const myId = await OBR.player.getId();
     if (targetId === myId) {
@@ -245,7 +235,6 @@ async function updateUserMetadata(targetId, newState) {
     }
 }
 
-// Хелпер: Поиск пользователя по ID среди всех участников лобби
 async function findUserById(id) {
     const myId = await OBR.player.getId();
     const myName = await OBR.player.getName();

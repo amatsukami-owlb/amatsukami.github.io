@@ -4,4 +4,5 @@
   "description": "Панель способностей, привязанная к конкретному токену (персонажу)",
   "entry": "index.html",
   "permissions": ["tokens", "scene"]
+  "manifest_version": 1
 }

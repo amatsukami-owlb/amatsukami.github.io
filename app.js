@@ -15,23 +15,34 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-OBR.onReady(async () => {
-    try {
-        const role = await OBR.player.getRole();
+// Стало (замените начало файла после CLASS_DATA и METADATA_KEY):
+function startPlugin() {
+    OBR.onReady(async () => {
+        try {
+            const role = await OBR.player.getRole();
 
-        if (role === "GM") {
-            const gmView = document.getElementById("gm-view");
-            if (gmView) gmView.style.display = "block";
-            initGmInterface();
-        } else {
-            const playerView = document.getElementById("player-view");
-            if (playerView) playerView.style.display = "block";
-            initPlayerInterface();
+            if (role === "GM") {
+                const gmView = document.getElementById("gm-view");
+                if (gmView) gmView.style.display = "block";
+                initGmInterface();
+            } else {
+                const playerView = document.getElementById("player-view");
+                if (playerView) playerView.style.display = "block";
+                initPlayerInterface();
+            }
+        } catch (e) {
+            console.error("Ошибка инициализации SDK:", e);
         }
-    } catch (e) {
-        console.error("Ошибка инициализации SDK:", e);
-    }
-});
+    });
+}
+
+// Проверяем: если окно уже загружено — запускаем, если нет — ждем полной загрузки страницы и SDK
+if (document.readyState === "complete") {
+    startPlugin();
+} else {
+    window.addEventListener("load", startPlugin);
+}
+
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER VIEW)

@@ -20,16 +20,16 @@ OBR.onReady(async () => {
         const role = await OBR.player.getRole();
 
         if (role === "GM") {
-            // Включаем интерфейс мастера
-            document.getElementById("gm-view").style.display = "block";
+            const gmView = document.getElementById("gm-view");
+            if (gmView) gmView.style.display = "block";
             initGmInterface();
         } else {
-            // Включаем интерфейс игрока
-            document.getElementById("player-view").style.display = "block";
+            const playerView = document.getElementById("player-view");
+            if (playerView) playerView.style.display = "block";
             initPlayerInterface();
         }
     } catch (e) {
-        console.error("Ошибка инициализации:", e);
+        console.error("Ошибка инициализации SDK:", e);
     }
 });
 
@@ -37,25 +37,30 @@ OBR.onReady(async () => {
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER VIEW)
 // ==========================================
 async function initPlayerInterface() {
-    const myId = await OBR.player.getId();
-    const myName = await OBR.player.getName();
-    
-    // Рисуем интерфейс сразу
-    const initialMetadata = await OBR.player.getMetadata();
-    renderPlayer({ id: myId, name: myName, metadata: initialMetadata });
+    try {
+        const myId = await OBR.player.getId();
+        const myName = await OBR.player.getName();
+        const initialMetadata = await OBR.player.getMetadata();
+        
+        renderPlayer({ id: myId, name: myName, metadata: initialMetadata });
 
-    // Следим за изменениями своего персонажа (если ГМ поменяет нам класс или ману)
-    OBR.player.onChange((player) => {
-        renderPlayer(player);
-    });
+        OBR.player.onChange((player) => {
+            renderPlayer(player);
+        });
+    } catch (e) {
+        console.error("Ошибка интерфейса игрока:", e);
+    }
 }
 
 function renderPlayer(player) {
+    if (!player || !player.metadata) return;
+    
     const state = player.metadata[METADATA_KEY] || { classType: "none", currentResource: 0 };
     const classTitle = document.getElementById("class-title");
     const resourceDisplay = document.getElementById("resource-display");
     const listContainer = document.getElementById("abilities-list");
 
+    if (!classTitle || !resourceDisplay || !listContainer) return;
     listContainer.innerHTML = "";
 
     if (state.classType === "none" || !CLASS_DATA[state.classType]) {
@@ -91,93 +96,150 @@ function renderPlayer(player) {
 // ЛОГИКА ДЛЯ МАСТЕРА (GM VIEW)
 // ==========================================
 async function initGmInterface() {
-    // Собираем всех участников и обновляем ГМ-панель
+    setupGmActions();
     await refreshGmPanel();
 
-    // Автоматически перерисовываем таблицу ГМа, когда игроки тратят ресурсы
     OBR.party.onChange(async () => {
         await refreshGmPanel();
     });
 }
 
 async function refreshGmPanel() {
+    try {
+        const myId = await OBR.player.getId();
+        const myName = await OBR.player.getName();
+        const myMetadata = await OBR.player.getMetadata();
+        
+        const gmUser = { id: myId, name: myName + " (Вы/GM)", metadata: myMetadata };
+        
+        let remotePlayers = [];
+        try {
+            remotePlayers = await OBR.party.getPlayers();
+        } catch(e) { remotePlayers = []; }
+        
+        const allUsers = [gmUser, ...remotePlayers];
+
+        const select = document.getElementById("player-select");
+        const tableBody = document.getElementById("party-status-list");
+        
+        if (!select || !tableBody) return;
+
+        const currentSelection = select.value;
+        select.innerHTML = "";
+        tableBody.innerHTML = "";
+
+        allUsers.forEach(p => {
+            const opt = document.createElement("option");
+            opt.value = p.id;
+            opt.innerText = p.name;
+            if (p.id === currentSelection) opt.selected = true;
+            select.appendChild(opt);
+
+            const state = p.metadata[METADATA_KEY] || { classType: "none", currentResource: 0 };
+            const tr = document.createElement("tr");
+            
+            let classLabel = "Нет";
+            let resourceLabel = "—";
+            
+            if (state.classType !== "none" && CLASS_DATA[state.classType]) {
+                classLabel = CLASS_DATA[state.classType].className;
+                resourceLabel = `${state.currentResource} / ${CLASS_DATA[state.classType].maxResource}`;
+            }
+
+            tr.innerHTML = `<td><b>${p.name}</b></td><td>${classLabel}</td><td>${resourceLabel}</td>`;
+            tableBody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error("Ошибка обновления панели GM:", e);
+    }
+}
+
+// Вынос обработчиков кликов отдельно, чтобы не вешать их заново при каждой перерисовке таблицы
+function setupGmActions() {
+    const assignBtn = document.getElementById("assign-btn");
+    const restBtn = document.getElementById("rest-btn");
+    const saveResBtn = document.getElementById("save-resource-btn");
+    const select = document.getElementById("player-select");
+
+    if (assignBtn && select) {
+        assignBtn.onclick = async () => {
+            const targetId = select.value;
+            const selectedClass = document.getElementById("class-select").value;
+            if (!targetId) return;
+
+            const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
+            const newState = { classType: selectedClass, currentResource: maxRes };
+
+            await updateUserMetadata(targetId, newState);
+            await refreshGmPanel();
+        };
+    }
+
+    if (restBtn && select) {
+        restBtn.onclick = async () => {
+            const targetId = select.value;
+            if (!targetId) return;
+
+            const targetUser = await findUserById(targetId);
+            const state = targetUser?.metadata[METADATA_KEY];
+            
+            if (state && state.classType !== "none" && CLASS_DATA[state.classType]) {
+                const maxRes = CLASS_DATA[state.classType].maxResource;
+                const newState = { ...state, currentResource: maxRes };
+
+                await updateUserMetadata(targetId, newState);
+                await refreshGmPanel();
+            }
+        };
+    }
+
+    // ЛОГИКА РУЧНОГО ВВОДА РЕСУРСА
+    if (saveResBtn && select) {
+        saveResBtn.onclick = async () => {
+            const targetId = select.value;
+            const inputField = document.getElementById("manual-resource-input");
+            if (!targetId || !inputField || inputField.value === "") return;
+
+            const targetUser = await findUserById(targetId);
+            const state = targetUser?.metadata[METADATA_KEY];
+
+            if (state && state.classType !== "none" && CLASS_DATA[state.classType]) {
+                const maxRes = CLASS_DATA[state.classType].maxResource;
+                // Ограничиваем ввод: не меньше 0 и не больше максимума класса
+                let val = parseInt(inputField.value, 10);
+                if (isNaN(val)) return;
+                val = Math.max(0, Math.min(maxRes, val));
+
+                const newState = { ...state, currentResource: val };
+                await updateUserMetadata(targetId, newState);
+                
+                inputField.value = ""; // Очищаем поле ввода
+                await refreshGmPanel();
+            } else {
+                alert("Нельзя установить ресурс персонажу без назначенного класса!");
+            }
+        };
+    }
+}
+
+// Хелпер: Безопасная отправка данных игроку или самому себе (ГМу)
+async function updateUserMetadata(targetId, newState) {
+    const myId = await OBR.player.getId();
+    if (targetId === myId) {
+        await OBR.player.setMetadata({ [METADATA_KEY]: newState });
+    } else {
+        await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
+    }
+}
+
+// Хелпер: Поиск пользователя по ID среди всех участников лобби
+async function findUserById(id) {
     const myId = await OBR.player.getId();
     const myName = await OBR.player.getName();
     const myMetadata = await OBR.player.getMetadata();
     
-    // В OBR создатель комнаты — тоже игрок, добавляем его в общий список
-    const gmUser = { id: myId, name: myName + " (Вы/GM)", metadata: myMetadata };
-    const remotePlayers = await OBR.party.getPlayers();
-    const allUsers = [gmUser, ...remotePlayers];
-
-    // 1. Обновляем выпадающий список выбора игроков
-    const select = document.getElementById("player-select");
-    const currentSelection = select.value;
-    select.innerHTML = "";
+    if (id === myId) return { id: myId, name: myName, metadata: myMetadata };
     
-    // 2. Заполняем таблицу мониторинга
-    const tableBody = document.getElementById("party-status-list");
-    tableBody.innerHTML = "";
-
-    allUsers.forEach(p => {
-        // Добавляем в выпадающее меню
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        opt.innerText = p.name;
-        if (p.id === currentSelection) opt.selected = true;
-        select.appendChild(opt);
-
-        // Добавляем строчку в таблицу статуса
-        const state = p.metadata[METADATA_KEY] || { classType: "none", currentResource: 0 };
-        const tr = document.createElement("tr");
-        
-        let classLabel = "Нет";
-        let resourceLabel = "—";
-        
-        if (state.classType !== "none" && CLASS_DATA[state.classType]) {
-            classLabel = CLASS_DATA[state.classType].className;
-            resourceLabel = `${state.currentResource} / ${CLASS_DATA[state.classType].maxResource}`;
-        }
-
-        tr.innerHTML = `<td><b>${p.name}</b></td><td>${classLabel}</td><td>${resourceLabel}</td>`;
-        tableBody.appendChild(tr);
-    });
-
-    // Кнопка: Назначить класс
-    document.getElementById("assign-btn").onclick = async () => {
-        const targetId = select.value;
-        const selectedClass = document.getElementById("class-select").value;
-        if (!targetId) return;
-
-        const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-        const newState = { classType: selectedClass, currentResource: maxRes };
-
-        if (targetId === myId) {
-            await OBR.player.setMetadata({ [METADATA_KEY]: newState });
-        } else {
-            await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
-        }
-        await refreshGmPanel();
-    };
-
-    // Кнопка: Полный отдых (Восстановить ресурс до максимума)
-    document.getElementById("rest-btn").onclick = async () => {
-        const targetId = select.value;
-        if (!targetId) return;
-
-        const targetUser = allUsers.find(u => u.id === targetId);
-        const state = targetUser?.metadata[METADATA_KEY];
-        
-        if (state && state.classType !== "none" && CLASS_DATA[state.classType]) {
-            const maxRes = CLASS_DATA[state.classType].maxResource;
-            const newState = { ...state, currentResource: maxRes };
-
-            if (targetId === myId) {
-                await OBR.player.setMetadata({ [METADATA_KEY]: newState });
-            } else {
-                await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
-            }
-            await refreshGmPanel();
-        }
-    };
+    const remotePlayers = await OBR.party.getPlayers();
+    return remotePlayers.find(p => p.id === id);
 }

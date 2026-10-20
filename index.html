@@ -3,39 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <title>Class Abilities</title>
-    <!-- Подключаем SDK Owlbear Rodeo -->
     <script src="https://unpkg.com"></script>
     <style>
         body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; }
         .resource-bar { background: #444; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
         .ability-btn { display: block; width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 14px; }
         .ability-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
-        .gm-panel { border-top: 1px solid #444; margin-top: 20px; padding-top: 10px; display: none; }
-        select { width: 100%; padding: 5px; background: #333; color: white; border: 1px solid #555; }
+        
+        /* Стили для таблицы Мастера */
+        .gm-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
+        .gm-table th, .gm-table td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
+        .gm-table th { background: #333; color: #aaa; }
+        .controls-group { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-top: 15px; }
+        select, input { width: 100%; padding: 6px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
+        .secondary-btn { background: #28a745; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="player-view">
-        <h3 id="class-title">Класс не назначен</h3>
-        <div class="resource-bar" id="resource-display">Ресурс: 0 / 0</div>
+    <!-- ЭКРАН ИГРОКА (По умолчанию скрыт) -->
+    <div id="player-view" style="display: none;">
+        <h3 id="class-title">Загрузка...</h3>
+        <div class="resource-bar" id="resource-display">Ресурс: —</div>
         <div id="abilities-list"></div>
     </div>
 
-    <!-- Панель управления мастера (скрыта для игроков) -->
-    <div id="gm-panel" class="gm-panel">
-        <h4>Панель Мастера (Назначить класс)</h4>
-        <label for="player-select">Игрок:</label>
-        <select id="player-select"></select>
-        <br/><br/>
-        <label for="class-select">Класс:</label>
-        <select id="class-select">
-            <option value="none">Без класса</option>
-            <option value="warrior">Воин (Выносливость)</option>
-            <option value="mage">Маг (Мана)</option>
-        </select>
-        <br/><br/>
-        <button id="assign-btn" class="ability-btn">Назначить класс и сбросить ресурс</button>
+    <!-- ЭКРАН МАСТЕРА (По умолчанию скрыт) -->
+    <div id="gm-view" style="display: none;">
+        <h3>Мониторинг группы (GM)</h3>
+        <table class="gm-table">
+            <thead>
+                <tr>
+                    <th>Игрок</th>
+                    <th>Класс</th>
+                    <th>Ресурс</th>
+                </tr>
+            </thead>
+            <tbody id="party-status-list">
+                <!-- Сюда будут динамически добавляться строки игроков -->
+            </tbody>
+        </table>
+
+        <div class="controls-group">
+            <h4>Управление персонажами</h4>
+            <label for="player-select">Выберите персонажа:</label>
+            <select id="player-select"></select>
+
+            <label for="class-select">Назначить класс:</label>
+            <select id="class-select">
+                <option value="none">Без класса</option>
+                <option value="warrior">Воин (Выносливость)</option>
+                <option value="mage">Маг (Мана)</option>
+            </select>
+            <button id="assign-btn" class="ability-btn">Установить класс и сбросить ресурс</button>
+            
+            <button id="rest-btn" class="ability-btn secondary-btn">Полный отдых (Восстановить ресурс)</button>
+        </div>
     </div>
 
     <script src="app.js"></script>

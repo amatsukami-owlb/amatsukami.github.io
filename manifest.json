@@ -1,0 +1,7 @@
+{
+  "name": "Personal Character Sheet",
+  "version": "1.0.0",
+  "description": "Панель способностей, привязанная к конкретному токену (персонажу)",
+  "entry": "index.html",
+  "permissions": ["tokens", "scene"]
+}

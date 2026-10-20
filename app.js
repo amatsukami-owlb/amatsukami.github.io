@@ -15,14 +15,20 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-function startPlugin() {
-    if (typeof OBR === "undefined") return;
-    clearInterval(checkObrInterval);
+// ЖЕЛЕЗОБЕТОННЫЙ ЗАПУСК: Ждем, пока Owlbear сам скажет, что готов к общению
+window.addEventListener("load", () => {
+    if (typeof OBR === "undefined") {
+        console.error("Критическая ошибка: OBR SDK не найден на странице!");
+        return;
+    }
 
     OBR.onReady(async () => {
         try {
+            console.log("OBR SDK успешно подключен и готов!");
             const role = await OBR.player.getRole();
+            console.log("Ваша роль в комнате:", role);
 
+            // Мгновенно включаем нужный экран, убирая класс скрытия
             if (role === "GM") {
                 const gmView = document.getElementById("gm-view");
                 if (gmView) gmView.className = "visible-view";
@@ -33,12 +39,10 @@ function startPlugin() {
                 initPlayerInterface();
             }
         } catch (e) {
-            console.error("Ошибка инициализации SDK:", e);
+            console.error("Ошибка при определении роли пользователя:", e);
         }
     });
-}
-
-const checkObrInterval = setInterval(startPlugin, 100);
+});
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER VIEW)
@@ -88,7 +92,6 @@ function renderPlayer(player) {
         if (state.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            // Безопасное назначение клика черезaddEventListener без инлайн-кода
             btn.addEventListener("click", async () => {
                 const nextResource = Math.max(0, state.currentResource - ability.cost);
                 await OBR.player.setMetadata({

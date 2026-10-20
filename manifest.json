@@ -1,13 +1,13 @@
 {
-  "name": "Class Ability Panel",
+  "name": "DnD Danil Edition",
   "version": "1.0.0",
   "description": "Панель ресурсов и способностей классов",
   "manifest_version": 1,
   "action": {
-    "title": "Способности класса",
-    "popover": "/index.html",
-    "icon": "/icon.svg",
-    "width": 360,
+    "title": "DE&D Способности класса",
+    "popover": "https://amatsukami-owlb.github.io/amatsukami.github.io/index.html",
+    "icon": "https://amatsukami-owlb.github.io/amatsukami.github.io/icon.svg",
+    "width": 400,
     "height": 500
   }
 }

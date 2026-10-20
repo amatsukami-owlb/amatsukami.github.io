@@ -5,9 +5,15 @@
   "manifest_version": 1,
   "action": {
     "title": "DE&D Способности класса",
-    "popover": "https://amatsukami-owlb.github.io/amatsukami.github.io/index.html",
-    "icon": "https://amatsukami-owlb.github.io/amatsukami.github.io/icon.svg",
+    "popover": "https://github.io",
+    "icon": "https://github.io",
     "width": 400,
     "height": 500
-  }
+  },
+  "permissions": [
+    {
+      "name": "autoplay",
+      "reason": "Необходимо для базовой инициализации фрейма приложения"
+    }
+  ]
 }

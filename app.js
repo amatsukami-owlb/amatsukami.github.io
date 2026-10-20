@@ -15,8 +15,13 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-// Стало (замените начало файла после CLASS_DATA и METADATA_KEY):
 function startPlugin() {
+    // Если OBR всё еще не готов, ждем следующего цикла
+    if (typeof OBR === "undefined") return;
+
+    // Как только OBR появился — останавливаем проверку и запускаем плагин
+    clearInterval(checkObrInterval);
+
     OBR.onReady(async () => {
         try {
             const role = await OBR.player.getRole();
@@ -36,12 +41,9 @@ function startPlugin() {
     });
 }
 
-// Проверяем: если окно уже загружено — запускаем, если нет — ждем полной загрузки страницы и SDK
-if (document.readyState === "complete") {
-    startPlugin();
-} else {
-    window.addEventListener("load", startPlugin);
-}
+// Запускаем постоянную проверку каждую 1/10 секунды
+const checkObrInterval = setInterval(startPlugin, 100);
+
 
 
 // ==========================================

@@ -19,23 +19,19 @@
         .input-inline input { margin-bottom: 0; }
         .input-inline button { margin: 0; padding: 0 15px; white-space: nowrap; width: auto; }
         .secondary-btn { background: #28a745; margin-top: 5px; }
-
-        /* Безопасное скрытие экранов через CSS классы */
-        .hidden-view { display: none; }
-        .visible-view { display: block; }
     </style>
 </head>
 <body>
 
-    <!-- ЭКРАН ИГРОКА (Используем класс скрытия вместо инлайн-стиля) -->
-    <div id="player-view" class="hidden-view">
+    <!-- ЭКРАН ИГРОКА -->
+    <div id="player-view" style="display: none;">
         <h3 id="class-title">Загрузка...</h3>
         <div class="resource-bar" id="resource-display">Ресурс: —</div>
         <div id="abilities-list"></div>
     </div>
 
     <!-- ЭКРАН МАСТЕРА -->
-    <div id="gm-view" class="hidden-view">
+    <div id="gm-view" style="display: none;">
         <h3>Мониторинг группы (GM)</h3>
         <table class="gm-table">
             <thead>

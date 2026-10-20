@@ -25,11 +25,11 @@ function startPlugin() {
 
             if (role === "GM") {
                 const gmView = document.getElementById("gm-view");
-                if (gmView) gmView.style.display = "block";
+                if (gmView) gmView.className = "visible-view";
                 initGmInterface();
             } else {
                 const playerView = document.getElementById("player-view");
-                if (playerView) playerView.style.display = "block";
+                if (playerView) playerView.className = "visible-view";
                 initPlayerInterface();
             }
         } catch (e) {
@@ -88,12 +88,13 @@ function renderPlayer(player) {
         if (state.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.onclick = async () => {
+            // Безопасное назначение клика черезaddEventListener без инлайн-кода
+            btn.addEventListener("click", async () => {
                 const nextResource = Math.max(0, state.currentResource - ability.cost);
                 await OBR.player.setMetadata({
                     [METADATA_KEY]: { ...state, currentResource: nextResource }
                 });
-            };
+            });
         }
         listContainer.appendChild(btn);
     });

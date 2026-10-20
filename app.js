@@ -15,33 +15,25 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-// ЖЕЛЕЗОБЕТОННЫЙ ЗАПУСК: Ждем, пока Owlbear сам скажет, что готов к общению
-window.addEventListener("load", () => {
-    if (typeof OBR === "undefined") {
-        console.error("Критическая ошибка: OBR SDK не найден на странице!");
-        return;
-    }
+// Нативный вызов OBR без каких-либо браузерных обёрток событий
+OBR.onReady(async () => {
+    try {
+        console.log("OBR SDK Готов!");
+        const role = await OBR.player.getRole(); // Получаем роль
+        console.log("Моя роль:", role);
 
-    OBR.onReady(async () => {
-        try {
-            console.log("OBR SDK успешно подключен и готов!");
-            const role = await OBR.player.getRole();
-            console.log("Ваша роль в комнате:", role);
-
-            // Мгновенно включаем нужный экран, убирая класс скрытия
-            if (role === "GM") {
-                const gmView = document.getElementById("gm-view");
-                if (gmView) gmView.className = "visible-view";
-                initGmInterface();
-            } else {
-                const playerView = document.getElementById("player-view");
-                if (playerView) playerView.className = "visible-view";
-                initPlayerInterface();
-            }
-        } catch (e) {
-            console.error("Ошибка при определении роли пользователя:", e);
+        if (role === "GM") {
+            const gmView = document.getElementById("gm-view");
+            if (gmView) gmView.style.display = "block";
+            initGmInterface();
+        } else {
+            const playerView = document.getElementById("player-view");
+            if (playerView) playerView.style.display = "block";
+            initPlayerInterface();
         }
-    });
+    } catch (e) {
+        console.error("Ошибка инициализации внутри onReady:", e);
+    }
 });
 
 // ==========================================

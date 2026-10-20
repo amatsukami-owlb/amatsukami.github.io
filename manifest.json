@@ -1,8 +1,13 @@
 {
-  "name": "Personal Character Sheet",
+  "name": "Class Ability Panel",
   "version": "1.0.0",
-  "description": "Панель способностей, привязанная к конкретному токену (персонажу)",
-  "entry": "index.html",
-  "permissions": ["tokens", "scene"],
-  "manifest_version": 1
+  "description": "Панель ресурсов и способностей классов",
+  "manifest_version": 1,
+  "action": {
+    "title": "Способности класса",
+    "popover": "index.html",
+    "icon": "icon.svg",
+    "width": 360,
+    "height": 500
+  }
 }

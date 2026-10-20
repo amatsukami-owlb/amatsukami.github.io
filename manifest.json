@@ -5,7 +5,7 @@
   "manifest_version": 1,
   "action": {
     "title": "Способности класса",
-    "popover": "index.html",
+    "popover": "/index.html",
     "icon": "icon.svg",
     "width": 360,
     "height": 500

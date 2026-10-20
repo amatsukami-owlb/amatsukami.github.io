@@ -5,30 +5,32 @@
     <title>Class Abilities</title>
     <script src="https://unpkg.com"></script>
     <style>
-        body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; }
+        body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; box-sizing: border-box; }
         .resource-bar { background: #444; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
         .ability-btn { display: block; width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 14px; }
         .ability-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
         
-        /* Стили для таблицы Мастера */
         .gm-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px; }
         .gm-table th, .gm-table td { padding: 8px; text-align: left; border-bottom: 1px solid #444; }
         .gm-table th { background: #333; color: #aaa; }
         .controls-group { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-top: 15px; }
-        select, input { width: 100%; padding: 6px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
+        .input-inline { display: flex; gap: 8px; margin-bottom: 10px; }
+        select, input { width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
+        .input-inline input { margin-bottom: 0; }
+        .input-inline button { margin: 0; padding: 0 15px; white-space: nowrap; width: auto; }
         .secondary-btn { background: #28a745; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <!-- ЭКРАН ИГРОКА (По умолчанию скрыт) -->
+    <!-- ЭКРАН ИГРОКА -->
     <div id="player-view" style="display: none;">
         <h3 id="class-title">Загрузка...</h3>
         <div class="resource-bar" id="resource-display">Ресурс: —</div>
         <div id="abilities-list"></div>
     </div>
 
-    <!-- ЭКРАН МАСТЕРА (По умолчанию скрыт) -->
+    <!-- ЭКРАН МАСТЕРА -->
     <div id="gm-view" style="display: none;">
         <h3>Мониторинг группы (GM)</h3>
         <table class="gm-table">
@@ -39,9 +41,7 @@
                     <th>Ресурс</th>
                 </tr>
             </thead>
-            <tbody id="party-status-list">
-                <!-- Сюда будут динамически добавляться строки игроков -->
-            </tbody>
+            <tbody id="party-status-list"></tbody>
         </table>
 
         <div class="controls-group">
@@ -57,7 +57,13 @@
             </select>
             <button id="assign-btn" class="ability-btn">Установить класс и сбросить ресурс</button>
             
-            <button id="rest-btn" class="ability-btn secondary-btn">Полный отдых (Восстановить ресурс)</button>
+            <label>Изменить текущий ресурс вручную:</label>
+            <div class="input-inline">
+                <input type="number" id="manual-resource-input" placeholder="Значение..." min="0">
+                <button id="save-resource-btn" class="ability-btn">ОК</button>
+            </div>
+
+            <button id="rest-btn" class="ability-btn secondary-btn">Полный отдых (Максимум)</button>
         </div>
     </div>
 

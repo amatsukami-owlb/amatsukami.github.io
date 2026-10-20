@@ -3,6 +3,15 @@
 // ============================================================================
 !function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).OBR={})}(this,(function(e){"use strict";var t={onReady:function(e){var t=this;window.addEventListener("message",(function(n){if(n.data&&"OBR_READY"===n.data.type){var o=n.data.payload;t.context=o,e()}})),window.parent.postMessage({type:"OBR_INIT"},"*")},player:{getRole:function(){return Promise.resolve(t.context?.role||"PLAYER")},getId:function(){return Promise.resolve(t.context?.playerId||"")},getName:function(){return Promise.resolve(t.context?.playerName||"")},getMetadata:function(){return Promise.resolve(t.context?.playerMetadata||{})},setMetadata:function(e){return window.parent.postMessage({type:"OBR_SET_PLAYER_METADATA",payload:e},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PLAYER_CHANGED"===t.data.type&&e(t.data.payload)}))}},party:{getPlayers:function(){return Promise.resolve(t.context?.partyPlayers||[])},setPlayerMetadata:function(e,t){return window.parent.postMessage({type:"OBR_SET_PARTY_PLAYER_METADATA",payload:{id:e,metadata:t}},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PARTY_CHANGED"===t.data.type&&e(t.data.payload)}))}}};e.onReady=t.onReady.bind(t),e.player=t.player,e.party=t.party,Object.defineProperty(e,"__esModule",{value:!0})}));
 
+// АВАРИЙНЫЙ ВЫВОД: Мгновенно включаем ГМ-панель при старте файла, не дожидаясь ответа OBR!
+console.log("Аварийный старт: Включаю отображение ГМ-панели...");
+setTimeout(() => {
+    const gmView = document.getElementById("gm-view");
+    if (gmView) {
+        gmView.style.display = "block";
+        setupGmActions();
+    }
+}, 50);
 // ============================================================================
 // БАЗА ДАННЫХ И НАСТРОЙКИ ПЛАГИНА
 // ============================================================================

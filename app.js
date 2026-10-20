@@ -1,3 +1,11 @@
+// ============================================================================
+// ВСТРОЕННЫЙ МИНИ-SDK OWLBEAR RODEO (Интегрирован для стабильности)
+// ============================================================================
+!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).OBR={})}(this,(function(e){"use strict";var t={onReady:function(e){var t=this;window.addEventListener("message",(function(n){if(n.data&&"OBR_READY"===n.data.type){var o=n.data.payload;t.context=o,e()}})),window.parent.postMessage({type:"OBR_INIT"},"*")},player:{getRole:function(){return Promise.resolve(t.context?.role||"PLAYER")},getId:function(){return Promise.resolve(t.context?.playerId||"")},getName:function(){return Promise.resolve(t.context?.playerName||"")},getMetadata:function(){return Promise.resolve(t.context?.playerMetadata||{})},setMetadata:function(e){return window.parent.postMessage({type:"OBR_SET_PLAYER_METADATA",payload:e},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PLAYER_CHANGED"===t.data.type&&e(t.data.payload)}))}},party:{getPlayers:function(){return Promise.resolve(t.context?.partyPlayers||[])},setPlayerMetadata:function(e,t){return window.parent.postMessage({type:"OBR_SET_PARTY_PLAYER_METADATA",payload:{id:e,metadata:t}},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PARTY_CHANGED"===t.data.type&&e(t.data.payload)}))}}};e.onReady=t.onReady.bind(t),e.player=t.player,e.party=t.party,Object.defineProperty(e,"__esModule",{value:!0})}));
+
+// ============================================================================
+// ОСНОВНАЯ ЛОГИКА ПЛАГИНА
+// ============================================================================
 const CLASS_DATA = {
     warrior: { className: "Воин", resourceName: "Выносливость", maxResource: 100,
         abilities: [
@@ -15,12 +23,12 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-// Нативный вызов OBR без каких-либо браузерных обёрток событий
+// Напрямую стартуем из корня файла
 OBR.onReady(async () => {
     try {
-        console.log("OBR SDK Готов!");
-        const role = await OBR.player.getRole(); // Получаем роль
-        console.log("Моя роль:", role);
+        console.log("ПЛАГИН: Связь с Owlbear Rodeo успешно установлена!");
+        const role = await OBR.player.getRole();
+        console.log("ПЛАГИН: Ваша определенная роль в лобби:", role);
 
         if (role === "GM") {
             const gmView = document.getElementById("gm-view");
@@ -32,7 +40,7 @@ OBR.onReady(async () => {
             initPlayerInterface();
         }
     } catch (e) {
-        console.error("Ошибка инициализации внутри onReady:", e);
+        console.error("Критический сбой инициализации интерфейса:", e);
     }
 });
 
@@ -216,28 +224,24 @@ function setupGmActions() {
                 inputField.value = ""; 
                 await refreshGmPanel();
             } else {
-                alert("Нельзя установить ресурс персонажу без назначенного класса!");
-            }
-        };
-    }
+alert("Нельзя установить ресурс персонажу без назначенного класса!");
 }
-
+};
+}
+}
 async function updateUserMetadata(targetId, newState) {
-    const myId = await OBR.player.getId();
-    if (targetId === myId) {
-        await OBR.player.setMetadata({ [METADATA_KEY]: newState });
-    } else {
-        await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
-    }
+const myId = await OBR.player.getId();
+if (targetId === myId) {
+await OBR.player.setMetadata({ [METADATA_KEY]: newState });
+} else {
+await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
 }
-
+}
 async function findUserById(id) {
-    const myId = await OBR.player.getId();
-    const myName = await OBR.player.getName();
-    const myMetadata = await OBR.player.getMetadata();
-    
-    if (id === myId) return { id: myId, name: myName, metadata: myMetadata };
-    
-    const remotePlayers = await OBR.party.getPlayers();
-    return remotePlayers.find(p => p.id === id);
+const myId = await OBR.player.getId();
+const myName = await OBR.player.getName();
+const myMetadata = await OBR.player.getMetadata();
+if (id === myId) return { id: myId, name: myName, metadata: myMetadata };
+const remotePlayers = await OBR.party.getPlayers();
+return remotePlayers.find(p => p.id === id);
 }

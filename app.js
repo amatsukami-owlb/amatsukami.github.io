@@ -1,10 +1,10 @@
 // ============================================================================
-// ВСТРОЕННЫЙ МИНИ-SDK OWLBEAR RODEO (Интегрирован для стабильности)
+// ВСТРОЕННЫЙ SDK OWLBEAR RODEO
 // ============================================================================
 !function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).OBR={})}(this,(function(e){"use strict";var t={onReady:function(e){var t=this;window.addEventListener("message",(function(n){if(n.data&&"OBR_READY"===n.data.type){var o=n.data.payload;t.context=o,e()}})),window.parent.postMessage({type:"OBR_INIT"},"*")},player:{getRole:function(){return Promise.resolve(t.context?.role||"PLAYER")},getId:function(){return Promise.resolve(t.context?.playerId||"")},getName:function(){return Promise.resolve(t.context?.playerName||"")},getMetadata:function(){return Promise.resolve(t.context?.playerMetadata||{})},setMetadata:function(e){return window.parent.postMessage({type:"OBR_SET_PLAYER_METADATA",payload:e},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PLAYER_CHANGED"===t.data.type&&e(t.data.payload)}))}},party:{getPlayers:function(){return Promise.resolve(t.context?.partyPlayers||[])},setPlayerMetadata:function(e,t){return window.parent.postMessage({type:"OBR_SET_PARTY_PLAYER_METADATA",payload:{id:e,metadata:t}},"*"),Promise.resolve()},onChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_PARTY_CHANGED"===t.data.type&&e(t.data.payload)}))}}};e.onReady=t.onReady.bind(t),e.player=t.player,e.party=t.party,Object.defineProperty(e,"__esModule",{value:!0})}));
 
 // ============================================================================
-// ОСНОВНАЯ ЛОГИКА ПЛАГИНА
+// БАЗА ДАННЫХ И НАСТРОЙКИ ПЛАГИНА
 // ============================================================================
 const CLASS_DATA = {
     warrior: { className: "Воин", resourceName: "Выносливость", maxResource: 100,
@@ -23,46 +23,49 @@ const CLASS_DATA = {
 
 const METADATA_KEY = "com.mygithub.ability-panel/player-state";
 
-// Напрямую стартуем из корня файла
+// Переменные для хранения текущего состояния
+let myRole = "PLAYER";
+let myPlayerId = "";
+let myPlayerName = "";
+
+// Главная точка входа, которая сработает при готовности Owlbear Rodeo
 OBR.onReady(async () => {
     try {
-        console.log("ПЛАГИН: Связь с Owlbear Rodeo успешно установлена!");
-        const role = await OBR.player.getRole();
-        console.log("ПЛАГИН: Ваша определенная роль в лобби:", role);
+        console.log("Успешное подключение к Owlbear Rodeo!");
+        
+        // Сразу запрашиваем базовые данные авторизации
+        myRole = await OBR.player.getRole();
+        myPlayerId = await OBR.player.getId();
+        myPlayerName = await OBR.player.getName();
 
-        if (role === "GM") {
-            const gmView = document.getElementById("gm-view");
-            if (gmView) gmView.style.display = "block";
-            initGmInterface();
+        // ШАГ 1: МГНОВЕННО включаем нужный экран, чтобы окно больше не было черным
+        if (myRole === "GM") {
+            document.getElementById("gm-view").style.display = "block";
+            // Инициализируем кнопки управления ГМа
+            setupGmActions();
+            await refreshGmPanel();
+            // Подписываемся на обновления группы
+            OBR.party.onChange(async () => {
+                await refreshGmPanel();
+            });
         } else {
-            const playerView = document.getElementById("player-view");
-            if (playerView) playerView.style.display = "block";
-            initPlayerInterface();
+            document.getElementById("player-view").style.display = "block";
+            // Инициализируем получение данных игрока
+            const initialMetadata = await OBR.player.getMetadata();
+            renderPlayer({ id: myPlayerId, name: myPlayerName, metadata: initialMetadata });
+            // Подписываемся на изменения персонажа игрока
+            OBR.player.onChange((player) => {
+                renderPlayer(player);
+            });
         }
-    } catch (e) {
-        console.error("Критический сбой инициализации интерфейса:", e);
+    } catch (error) {
+        console.error("Ошибка на этапе старта интерфейса:", error);
     }
 });
 
 // ==========================================
-// ЛОГИКА ДЛЯ ИГРОКА (PLAYER VIEW)
+// ИНТЕРФЕЙС ИГРОКА
 // ==========================================
-async function initPlayerInterface() {
-    try {
-        const myId = await OBR.player.getId();
-        const myName = await OBR.player.getName();
-        const initialMetadata = await OBR.player.getMetadata();
-        
-        renderPlayer({ id: myId, name: myName, metadata: initialMetadata });
-
-        OBR.player.onChange((player) => {
-            renderPlayer(player);
-        });
-    } catch (e) {
-        console.error("Ошибка интерфейса игрока:", e);
-    }
-}
-
 function renderPlayer(player) {
     if (!player || !player.metadata) return;
     
@@ -104,24 +107,12 @@ function renderPlayer(player) {
 }
 
 // ==========================================
-// ЛОГИКА ДЛЯ МАСТЕРА (GM VIEW)
+// ИНТЕРФЕЙС МАСТЕРА (GM)
 // ==========================================
-async function initGmInterface() {
-    setupGmActions();
-    await refreshGmPanel();
-
-    OBR.party.onChange(async () => {
-        await refreshGmPanel();
-    });
-}
-
 async function refreshGmPanel() {
     try {
-        const myId = await OBR.player.getId();
-        const myName = await OBR.player.getName();
         const myMetadata = await OBR.player.getMetadata();
-        
-        const gmUser = { id: myId, name: myName + " (Вы/GM)", metadata: myMetadata };
+        const gmUser = { id: myPlayerId, name: myPlayerName + " (Вы/GM)", metadata: myMetadata };
         
         let remotePlayers = [];
         try {
@@ -161,7 +152,7 @@ async function refreshGmPanel() {
             tableBody.appendChild(tr);
         });
     } catch (e) {
-        console.error("Ошибка обновления панели GM:", e);
+        console.error("Ошибка обновления таблицы GM:", e);
     }
 }
 
@@ -224,24 +215,26 @@ function setupGmActions() {
                 inputField.value = ""; 
                 await refreshGmPanel();
             } else {
-alert("Нельзя установить ресурс персонажу без назначенного класса!");
+                alert("Нельзя установить ресурс персонажу без назначенного класса!");
 }
 };
 }
 }
 async function updateUserMetadata(targetId, newState) {
-const myId = await OBR.player.getId();
-if (targetId === myId) {
+if (targetId === myPlayerId) {
 await OBR.player.setMetadata({ [METADATA_KEY]: newState });
 } else {
 await OBR.party.setPlayerMetadata(targetId, { [METADATA_KEY]: newState });
 }
 }
 async function findUserById(id) {
-const myId = await OBR.player.getId();
-const myName = await OBR.player.getName();
+if (id === myPlayerId) {
 const myMetadata = await OBR.player.getMetadata();
-if (id === myId) return { id: myId, name: myName, metadata: myMetadata };
-const remotePlayers = await OBR.party.getPlayers();
+return { id: myPlayerId, name: myPlayerName, metadata: myMetadata };
+}
+let remotePlayers = [];
+try {
+remotePlayers = await OBR.party.getPlayers();
+} catch(e) {}
 return remotePlayers.find(p => p.id === id);
 }

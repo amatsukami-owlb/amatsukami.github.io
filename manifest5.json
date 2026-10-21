@@ -1,14 +1,13 @@
 {
   "name": "DnD Danil Edition",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "Панель ресурсов и способностей классов",
   "manifest_version": 1,
-  "background_script": "https://amatsukamigithubio.vercel.app/background.html",
   "action": {
     "title": "DE&D Способности класса",
-    "popover": "https://amatsukamigithubio.vercel.app/index.html",
-    "icon": "https://amatsukamigithubio.vercel.app/icon.svg",
-    "width": 400,
-    "height": 500
+    "popover": "https://vercel.app",
+    "icon": "https://vercel.app",
+    "width": 500,
+    "height": 400
   }
 }

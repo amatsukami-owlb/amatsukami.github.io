@@ -5,8 +5,8 @@
   "manifest_version": 1,
   "action": {
     "title": "DE&D Способности класса",
-    "popover": "https://amatsukami-owlb.github.io/amatsukami.github.io/index.html",
-    "icon": "https://amatsukami-owlb.github.io/amatsukami.github.io/icon.svg",
+    "popover": "https://amatsukamigithubio.vercel.app/index.html",
+    "icon": "https://amatsukamigithubio.vercel.app/icon.svg",
     "width": 400,
     "height": 500
   }

@@ -20,15 +20,15 @@
 </head>
 <body>
 
-    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА -->
-    <div id="player-setup-view" style="display: none;" class="setup-screen">
+    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА (По умолчанию открыт сразу, чтобы не было черного окна!) -->
+    <div id="player-setup-view" class="setup-screen">
         <h3>Введите имя вашего персонажа</h3>
         <p style="color: #aaa; font-size: 14px;">(Например: Mira или Bolt)</p>
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
         <button id="login-char-btn" class="ability-btn">Войти в панель</button>
     </div>
 
-    <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА -->
+    <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА (Изначально скрыт) -->
     <div id="player-main-view" style="display: none;">
         <h2 id="char-display-name" class="token-header">Имя Персонажа</h2>
         <h3 id="class-title">Класс не назначен</h3>
@@ -36,7 +36,7 @@
         <div id="abilities-list"></div>
     </div>
 
-    <!-- ЭКРАН ГЕЙМ-МАСТЕРА (GM) -->
+    <!-- ЭКРАН ГЕЙМ-МАСТЕРА (Изначально скрыт) -->
     <div id="gm-view" style="display: none;">
         <h3>Панель управления Мастера</h3>
         <div class="controls-group">

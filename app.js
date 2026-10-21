@@ -249,7 +249,7 @@ function updateGmMonitorTable() {
                     // Отправляем легальный запрос в облако OBR
                     try {
                         await OBR.room.setMetadata(updatePayload);
-console.log(Ресурс для ${char} успешно изменен ГМом на ${val});
+console.log("Ресурс для ${char} успешно изменен ГМом на ${val}");
 } catch(e) { console.error("Ошибка сохранения ресурса ГМом:", e); }
 };
 }

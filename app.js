@@ -1,3 +1,4 @@
+// 2.0.7
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -20,18 +21,17 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 let myRole = "PLAYER";
 let activeCharacterName = null; 
 
-OBR.onReady(() => {
-    console.log("Официальный мост OBR успешно подключен!");
-    
-    setupPlayerLogin();
-    
+// ============================================================================
+// АВТОНОМНЫЙ ЗАПУСК КНОПОК (Работает мгновенно, не дожидаясь ответов OBR!)
+// ============================================================================
+document.addEventListener("DOMContentLoaded", () => {
     const forceGmBtn = document.getElementById("force-gm-btn");
     const gmPasswordBlock = document.getElementById("gm-password-block");
     const submitPasswordBtn = document.getElementById("submit-gm-password-btn");
     const passwordInput = document.getElementById("gm-password-input");
     const errorMsg = document.getElementById("gm-error-msg");
 
-    // При клике на желтую надпись просто показываем блок ввода пароля
+    // 1. По клику на желтую ссылку МГНОВЕННО разворачиваем поле ввода пароля
     if (forceGmBtn && gmPasswordBlock) {
         forceGmBtn.onclick = () => {
             gmPasswordBlock.style.display = gmPasswordBlock.style.display === "none" ? "block" : "none";
@@ -39,29 +39,34 @@ OBR.onReady(() => {
         };
     }
 
-    // Проверка пароля при клике на зеленую кнопку ОК
+    // 2. Проверяем пароль Мастера при клике на ОК
     if (submitPasswordBtn && passwordInput) {
         submitPasswordBtn.onclick = async () => {
-            // ВАШ СЕКРЕТНЫЙ ПАРОЛЬ (Поменяйте "1234" на свой личный ключ)
+            // ВАШ СЕКРЕТНЫЙ ПАРОЛЬ (Поменяйте "1234" на любой свой)
             if (passwordInput.value === "1234") {
                 myRole = "GM";
                 document.getElementById("gm-view").style.display = "block";
                 document.getElementById("player-setup-view").style.display = "none";
                 
-                buildGmCharacterSelect();
-                setupGmActions();
-                await updateGmViewData();
-                
-                OBR.room.onChange(async () => {
+                // Только теперь запускаем функции ГМа внутри OBR
+                OBR.onReady(async () => {
+                    buildGmCharacterSelect();
+                    setupGmActions();
                     await updateGmViewData();
+                    
+                    OBR.room.onChange(async () => {
+                        await updateGmViewData();
+                    });
                 });
             } else {
-                // Если пароль не подошел
                 if (errorMsg) errorMsg.style.display = "block";
                 passwordInput.value = "";
             }
         };
     }
+
+    // 3. Инициализируем вход для игрока
+    setupPlayerLogin();
 });
 
 // ==========================================
@@ -73,7 +78,7 @@ function setupPlayerLogin() {
 
     if (!loginBtn || !inputField) return;
 
-    loginBtn.onclick = async () => {
+    loginBtn.onclick = () => {
         const enteredName = inputField.value.trim();
         const matchedName = ALLOWED_CHARACTERS.find(c => c.toLowerCase() === enteredName.toLowerCase());
 
@@ -87,10 +92,12 @@ function setupPlayerLogin() {
         document.getElementById("player-setup-view").style.display = "none";
         document.getElementById("player-main-view").style.display = "block";
 
-        await renderPlayerInterface();
-
-        OBR.room.onChange(async () => {
+        // Запускаем синхронизацию игрока с OBR после успешного ввода имени
+        OBR.onReady(async () => {
             await renderPlayerInterface();
+            OBR.room.onChange(async () => {
+                await renderPlayerInterface();
+            });
         });
     };
 }
@@ -130,7 +137,6 @@ async function renderPlayerInterface() {
         } else {
             btn.addEventListener("click", async () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
-                
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 

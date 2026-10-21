@@ -1,4 +1,4 @@
-// 1.4
+// 1.0.4
 const CLASS_DATA = {
     warrior: { className: "Воин", resourceName: "Выносливость", maxResource: 100,
         abilities: [

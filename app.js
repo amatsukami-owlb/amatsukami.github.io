@@ -21,17 +21,27 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 let myRole = "PLAYER";
 let activeCharacterName = null; 
 
-// Нативный запуск при чтении файла
+// НАПРЯМУЮ ЗАПУСКАЕМ НА СТАРТЕ ФАЙЛА
 OBR.onReady(() => {
     console.log("Официальный мост OBR успешно подключен!");
     
     // Инициализируем стандартный выбор для игрока
     setupPlayerLogin();
     
-    // Инициализируем кнопку принудительного входа для ГМа
+    // Инициализируем кнопку принудительного входа для ГМа С ПАРОЛЕМ
     const forceGmBtn = document.getElementById("force-gm-btn");
     if (forceGmBtn) {
         forceGmBtn.onclick = async () => {
+            // Запрашиваем секретный ключ у пользователя
+            const accessPassword = prompt("Ты не гейм-мастер, сынок");
+            
+            // ВАШ СЕКРЕТНЫЙ ПАРОЛЬ (Поменяйте "1234" на любой свой)
+            if (accessPassword !== "4353") {
+                alert("Неверный пароль! Доступ к панели Мастера заблокирован.");
+                return; // Прерываем выполнение, ГМ-панель не откроется
+            }
+
+            // Если пароль верный — даем полный доступ
             myRole = "GM";
             document.getElementById("gm-view").style.display = "block";
             document.getElementById("player-setup-view").style.display = "none";

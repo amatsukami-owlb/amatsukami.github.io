@@ -20,48 +20,56 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 
 let myRole = "PLAYER";
 let activeCharacterName = null; 
-let latestRoomMetadata = {}; // Локальный слепок базы данных
+let latestRoomMetadata = {}; 
 
 // ============================================================================
-// ПРЯМОЙ НАВТИВНЫЙ МОСТ С OWLBEAR RODEO (Без внешних SDK)
+// НАТИВНЫЙ МОСТ С OWLBEAR RODEO
 // ============================================================================
 
-// Инициализируем подключение к Owlbear Rodeo
 window.parent.postMessage({ type: "OBR_INIT" }, "*");
 
-// Слушаем ответы от главной страницы Owlbear Rodeo
 window.addEventListener("message", (event) => {
     const msg = event.data;
     if (!msg) return;
 
-    // Сигнал готовности: Owlbear передал нам роль, ID и текущее состояние комнаты
     if (msg.type === "OBR_READY") {
         myRole = msg.payload?.role || "PLAYER";
         latestRoomMetadata = msg.payload?.roomMetadata || {};
-        
-        console.log("Соединение с Owlbear установлено! Моя роль:", myRole);
+        console.log("OBR_READY получен! Роль:", myRole);
         startPluginInterface();
     }
 
-    // Синхронизация: данные в комнате изменились (кто-то обновил ману или класс)
     if (msg.type === "OBR_ROOM_METADATA_CHANGED") {
         latestRoomMetadata = msg.payload || {};
-        
-        if (myRole === "GM") {
-            updateGmViewData();
-        } else {
-            renderPlayerInterface();
-        }
+        if (myRole === "GM") { updateGmViewData(); } else { renderPlayerInterface(); }
     }
 });
+
+// АВАРИЙНЫЙ РУЧНОЙ СТАРТ: Если через 1 секунду OBR не ответил, включаем плагин принудительно!
+setTimeout(() => {
+    // Если экраны всё ещё скрыты, значит OBR_READY завис в сети — пробиваем его вручную
+    if (document.getElementById("gm-view").style.display !== "block" && 
+        document.getElementById("player-setup-view").style.display !== "block") {
+        
+        console.log("Аварийный таймер сработал. Принудительно включаю интерфейс...");
+        
+        // По умолчанию открываем как PLAYER, чтобы вы или игроки могли ввести имя.
+        // Если вы тестируете под аккаунтом Мастера, замените "PLAYER" на "GM" в строке ниже, чтобы сразу видеть ГМ-панель:
+        myRole = "GM"; 
+        
+        startPluginInterface();
+    }
+}, 1000);
 
 function startPluginInterface() {
     if (myRole === "GM") {
         document.getElementById("gm-view").style.display = "block";
+        document.getElementById("player-setup-view").style.display = "none";
         buildGmCharacterSelect();
         setupGmActions();
         updateGmViewData();
     } else {
+        document.getElementById("gm-view").style.display = "none";
         document.getElementById("player-setup-view").style.display = "block";
         setupPlayerLogin();
     }

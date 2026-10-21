@@ -1,3 +1,4 @@
+// 1.0.6
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {

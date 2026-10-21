@@ -3,23 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <title>Character Sheet Panel</title>
-    <script src="obr-sdk.js"></script>
     <style>
         body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; box-sizing: border-box; }
         .resource-bar { background: #444; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
         .ability-btn { display: block; width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 14px; }
         .ability-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
         .controls-group { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-top: 15px; }
-        .input-inline { display: flex; gap: 8px; margin-bottom: 10px; }
         select, input { width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
-        .input-inline input { margin-bottom: 0; }
-        .input-inline button { margin: 0; padding: 0 15px; white-space: nowrap; width: auto; }
         .token-header { border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; color: #ffc107; }
         .setup-screen { text-align: center; padding-top: 40px; }
         .gm-link-btn { background: none; border: none; color: #ffc107; text-decoration: underline; cursor: pointer; margin-top: 25px; font-size: 13px; display: inline-block; width: 100%; }
-        
-        /* Стиль сообщения об ошибке пароля */
         .error-text { color: #ff4d4d; font-size: 13px; margin-top: 5px; display: none; }
+        
+        /* Стили для новой ГМ таблицы */
+        .gm-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
+        .gm-table th, .gm-table td { padding: 6px; text-align: left; border-bottom: 1px solid #444; vertical-align: middle; }
+        .gm-table th { background: #333; color: #aaa; }
+        .table-input-group { display: flex; gap: 4px; align-items: center; }
+        .table-input-group input { width: 60px; padding: 4px; margin: 0; text-align: center; }
+        .table-input-group button { padding: 4px 8px; margin: 0; background: #28a745; border: none; border-radius: 4px; color: white; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -30,16 +32,13 @@
         <p style="color: #aaa; font-size: 14px;">(Например: Mira или Bolt)</p>
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
         <button id="login-char-btn" class="ability-btn">Войти в панель</button>
-        
-        <!-- Кнопка вызова панели ГМа -->
         <button id="force-gm-btn" class="gm-link-btn">Открыть панель управления Мастера (GM)</button>
         
-        <!-- СКРЫТЫЙ БЛОК ДЛЯ ВВОДА ПАРОЛЯ ГМА -->
         <div id="gm-password-block" style="display: none; margin-top: 15px; background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444;">
             <label style="font-size: 13px; display: block; margin-bottom: 8px;">Введите пароль Мастера:</label>
-            <div class="input-inline">
-                <input type="password" id="gm-password-input" placeholder="Пароль...">
-                <button id="submit-gm-password-btn" class="ability-btn" style="background: #28a745;">ОК</button>
+            <div style="display: flex; gap: 8px;">
+                <input type="password" id="gm-password-input" placeholder="Пароль..." style="margin-bottom: 0;">
+                <button id="submit-gm-password-btn" class="ability-btn" style="background: #28a745; margin: 0; width: auto; padding: 0 15px;">ОК</button>
             </div>
             <div id="gm-error-msg" class="error-text">Неверный пароль!</div>
         </div>
@@ -56,13 +55,11 @@
     <!-- ЭКРАН ГЕЙМ-МАСТЕРА (GM) -->
     <div id="gm-view" style="display: none;">
         <h3>Панель управления Мастера</h3>
+        
         <div class="controls-group">
-            <label for="gm-char-select"><b>Выберите персонажа для настройки:</b></label>
+            <h4>Назначение классов</h4>
+            <label for="gm-char-select">Выберите персонажа:</label>
             <select id="gm-char-select"></select>
-            
-            <div style="background: #333; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 14px;">
-                Текущий статус: <span id="gm-status-label" style="color: #ffc107; font-weight: bold;">Загрузка...</span>
-            </div>
 
             <label for="class-select">Назначить класс:</label>
             <select id="class-select">
@@ -71,12 +68,24 @@
                 <option value="mage">Маг (Мана)</option>
             </select>
             <button id="assign-btn" class="ability-btn">Установить класс и сбросить ресурс</button>
-            
-            <label>Изменить текущий ресурс вручную:</label>
-            <div class="input-inline">
-                <input type="number" id="manual-resource-input" placeholder="Значение..." min="0">
-                <button id="save-resource-btn" class="ability-btn">ОК</button>
-            </div>
+        </div>
+
+        <!-- МОНИТОР ГРУППЫ С ТОЧЕЧНЫМ УПРАВЛЕНИЕМ -->
+        <div class="controls-group">
+            <h4>Мониторинг группы</h4>
+            <table class="gm-table">
+                <thead>
+                    <tr>
+                        <th>Персонаж</th>
+                        <th>Класс</th>
+                        <th>Ресурс</th>
+                        <th>Изменить</th>
+                    </tr>
+                </thead>
+                <tbody id="gm-mon-table-body">
+                    <!-- Сюда скрипт вставит строки группы -->
+                </tbody>
+            </table>
         </div>
     </div>
 

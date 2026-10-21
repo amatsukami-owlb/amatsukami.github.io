@@ -5,8 +5,8 @@
   "manifest_version": 1,
   "action": {
     "title": "DE&D Способности класса",
-    "popover": "https://vercel.app",
-    "icon": "https://vercel.app",
+    "popover": "https://amatsukamigithubio.vercel.app/index.html",
+    "icon": "https://amatsukamigithubio.vercel.app/icon.svg",
     "width": 500,
     "height": 400
   }

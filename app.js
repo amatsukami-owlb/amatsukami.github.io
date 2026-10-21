@@ -1,4 +1,4 @@
-// 2.0.8
+// 2.1.0
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -20,10 +20,34 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 
 let myRole = "PLAYER";
 let activeCharacterName = null; 
+let latestRoomMetadata = {}; // Локальная копия базы данных
 
 // ============================================================================
-// АВТОНОМНЫЙ ЗАПУСК КНОПОК (Работает мгновенно, не дожидаясь ответов OBR!)
+// НАДЕЖНЫЙ СЕТЕВОЙ МОСТ (Нативные postMessage сообщения)
 // ============================================================================
+window.parent.postMessage({ type: "OBR_INIT" }, "*");
+
+window.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (!msg) return;
+
+    if (msg.type === "OBR_READY") {
+        latestRoomMetadata = msg.payload?.roomMetadata || {};
+        console.log("Мост готов! Синхронизация данных выполнена.");
+        if (myRole === "GM") { updateGmMonitorTable(); }
+    }
+
+    if (msg.type === "OBR_ROOM_METADATA_CHANGED") {
+        latestRoomMetadata = msg.payload || {};
+        if (myRole === "GM") {
+            updateGmMonitorTable();
+        } else {
+            renderPlayerInterface();
+        }
+    }
+});
+
+// Инициализация при загрузке DOM
 document.addEventListener("DOMContentLoaded", () => {
     const forceGmBtn = document.getElementById("force-gm-btn");
     const gmPasswordBlock = document.getElementById("gm-password-block");
@@ -31,7 +55,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const passwordInput = document.getElementById("gm-password-input");
     const errorMsg = document.getElementById("gm-error-msg");
 
-    // 1. По клику на желтую ссылку МГНОВЕННО разворачиваем поле ввода пароля
     if (forceGmBtn && gmPasswordBlock) {
         forceGmBtn.onclick = () => {
             gmPasswordBlock.style.display = gmPasswordBlock.style.display === "none" ? "block" : "none";
@@ -39,29 +62,16 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-        // 2. Проверяем пароль Мастера при клике на ОК
     if (submitPasswordBtn && passwordInput) {
-        submitPasswordBtn.onclick = async () => {
-            // ВАШ СЕКРЕТНЫЙ ПАРОЛЬ (Поменяйте "1234" на любой свой)
+        submitPasswordBtn.onclick = () => {
             if (passwordInput.value === "1234") {
                 myRole = "GM";
-                
-                // МГНОВЕННО строим выпадающий список персонажей из пула имен
                 buildGmCharacterSelect();
-                
-                // Переключаем видимость экранов
+                setupGmActions();
+                updateGmMonitorTable();
+
                 document.getElementById("gm-view").style.display = "block";
                 document.getElementById("player-setup-view").style.display = "none";
-                
-                // Теперь спокойно запускаем работу с сервером OBR
-                OBR.onReady(async () => {
-                    setupGmActions();
-                    await updateGmViewData();
-                    
-                    OBR.room.onChange(async () => {
-                        await updateGmViewData();
-                    });
-                });
             } else {
                 if (errorMsg) errorMsg.style.display = "block";
                 passwordInput.value = "";
@@ -69,8 +79,6 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-
-    // 3. Инициализируем вход для игрока
     setupPlayerLogin();
 });
 
@@ -93,25 +101,17 @@ function setupPlayerLogin() {
         }
 
         activeCharacterName = matchedName;
-        
         document.getElementById("player-setup-view").style.display = "none";
         document.getElementById("player-main-view").style.display = "block";
 
-        // Запускаем синхронизацию игрока с OBR после успешного ввода имени
-        OBR.onReady(async () => {
-            await renderPlayerInterface();
-            OBR.room.onChange(async () => {
-                await renderPlayerInterface();
-            });
-        });
+        renderPlayerInterface();
     };
 }
 
-async function renderPlayerInterface() {
+function renderPlayerInterface() {
     if (!activeCharacterName) return;
 
-    const context = await OBR.room.getMetadata();
-    const globalState = context[ROOM_METADATA_KEY] || {};
+    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
     const charState = globalState[activeCharacterName] || { classType: "none", currentResource: 0 };
 
     document.getElementById("char-display-name").innerText = activeCharacterName;
@@ -140,13 +140,16 @@ async function renderPlayerInterface() {
         if (charState.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
-                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-                await renderPlayerInterface();
+                // Нативная безопасная отправка метаданных
+                window.parent.postMessage({
+                    type: "OBR_ROOM_SET_METADATA",
+                    payload: { [ROOM_METADATA_KEY]: globalState }
+                }, "*");
             });
         }
         listContainer.appendChild(btn);
@@ -166,79 +169,88 @@ function buildGmCharacterSelect() {
         opt.innerText = char;
         select.appendChild(opt);
     });
-
-    select.onchange = async () => {
-        await updateGmViewData();
-    };
 }
 
-async function updateGmViewData() {
-    const select = document.getElementById("gm-char-select");
-    const statusLabel = document.getElementById("gm-status-label");
-    if (!select || !statusLabel) return;
+function updateGmMonitorTable() {
+    const tableBody = document.getElementById("gm-mon-table-body");
+    if (!tableBody) return;
 
-    const targetChar = select.value;
-    const context = await OBR.room.getMetadata();
-    const globalState = context[ROOM_METADATA_KEY] || {};
-    const charState = globalState[targetChar] || { classType: "none", currentResource: 0 };
+    tableBody.innerHTML = "";
+    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
 
-    if (charState.classType === "none" || !CLASS_DATA[charState.classType]) {
-        statusLabel.innerText = "Класс не назначен";
-        statusLabel.style.color = "#aaa";
-    } else {
-        const cls = CLASS_DATA[charState.classType];
-        statusLabel.innerText = `${cls.className} (${charState.currentResource} / ${cls.maxResource})`;
-        statusLabel.style.color = "#ffc107";
-    }
+    ALLOWED_CHARACTERS.forEach(char => {
+        const charState = globalState[char] || { classType: "none", currentResource: 0 };
+        const tr = document.createElement("tr");
+
+        let classLabel = "Нет";
+        let resourceLabel = "—";
+        let inputHtml = `<span style="color:#666; font-style:italic;">Назначьте класс</span>`;
+
+        if (charState.classType !== "none" && CLASS_DATA[charState.classType]) {
+            const cls = CLASS_DATA[charState.classType];
+            classLabel = cls.className;
+            resourceLabel = `${charState.currentResource} / ${cls.maxResource}`;
+            
+            // Генерируем поле ввода и кнопку «ОК» ИНДИВИДУАЛЬНО для каждого персонажа в таблице
+            inputHtml = `
+                <div class="table-input-group">
+                    <input type="number" id="input-res-${char}" min="0" max="${cls.maxResource}" placeholder="Цифра">
+                    <button id="btn-save-${char}">ОК</button>
+                </div>
+            `;
+        }
+
+        tr.innerHTML = `<td><b>${char}</b></td><td>${classLabel}</td><td>${resourceLabel}</td><td>${inputHtml}</td>`;
+        tableBody.appendChild(tr);
+
+        // Вешаем обработчик клика на индивидуальную кнопку «ОК» персонажа
+        if (charState.classType !== "none" && CLASS_DATA[charState.classType]) {
+            const saveBtn = document.getElementById(`btn-save-${char}`);
+            const inputField = document.getElementById(`input-res-${char}`);
+            
+            if (saveBtn && inputField) {
+                saveBtn.onclick = () => {
+                    if (inputField.value === "") return;
+                    let val = parseInt(inputField.value, 10);
+                    const cls = CLASS_DATA[charState.classType];
+                    
+                    if (isNaN(val)) return;
+                    val = Math.max(0, Math.min(cls.maxResource, val));
+
+                    charState.currentResource = val;
+                    globalState[char] = charState;
+
+                    // Нативная гарантированная отправка измененной маны
+                    window.parent.postMessage({
+                        type: "OBR_ROOM_SET_METADATA",
+                        payload: { [ROOM_METADATA_KEY]: globalState }
+                    }, "*");
+                };
+            }
+        }
+    });
 }
 
 function setupGmActions() {
     const assignBtn = document.getElementById("assign-btn");
-    const saveResBtn = document.getElementById("save-resource-btn");
     const select = document.getElementById("gm-char-select");
 
     if (assignBtn && select) {
-        assignBtn.onclick = async () => {
+        assignBtn.onclick = () => {
             const targetChar = select.value;
             const selectedClass = document.getElementById("class-select").value;
             if (!targetChar) return;
 
             const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-            const context = await OBR.room.getMetadata();
-            const globalState = context[ROOM_METADATA_KEY] || {};
+            const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
-            await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-            await updateGmViewData();
-        };
-    }
-
-    if (saveResBtn && select) {
-        saveResBtn.onclick = async () => {
-            const targetChar = select.value;
-            const inputField = document.getElementById("manual-resource-input");
-            if (!targetChar || !inputField || inputField.value === "") return;
-
-            const context = await OBR.room.getMetadata();
-            const globalState = context[ROOM_METADATA_KEY] || {};
-            const charState = globalState[targetChar];
-
-            if (charState && charState.classType !== "none" && CLASS_DATA[charState.classType]) {
-                const maxRes = CLASS_DATA[charState.classType].maxResource;
-                let val = parseInt(inputField.value, 10);
-                if (isNaN(val)) return;
-                val = Math.max(0, Math.min(maxRes, val));
-
-                charState.currentResource = val;
-                globalState[targetChar] = charState;
-
-                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-                inputField.value = "";
-                await updateGmViewData();
-            } else {
-                alert("Сначала назначьте класс этому персонажу!");
-            }
+            // Нативная гарантированная отправка нового класса
+            window.parent.postMessage({
+                type: "OBR_ROOM_SET_METADATA",
+                payload: { [ROOM_METADATA_KEY]: globalState }
+            }, "*");
         };
     }
 }

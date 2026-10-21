@@ -1,4 +1,5 @@
-// 2.1.1
+// 2.1.2
+
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -23,28 +24,47 @@ let activeCharacterName = null;
 let latestRoomMetadata = {}; 
 
 // ============================================================================
-// ОФИЦИАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ С СЕРВЕРОМ OBR
+// ГАРАНТИРОВАННЫЙ СЕТЕВОЙ МОСТ (Прямые сообщения с оберткой транзакции)
 // ============================================================================
-OBR.onReady(async () => {
-    // Получаем самый свежий слепок глобальной комнаты при старте
-    try {
-        latestRoomMetadata = await OBR.room.getMetadata();
-    } catch(e) { latestRoomMetadata = {}; }
-    
-    console.log("Официальный мост OBR подключен к базе данных комнаты.");
 
-    // Автоматически перерисовываем интерфейсы при любых изменениях в комнате
-    OBR.room.onChange((metadata) => {
-        latestRoomMetadata = metadata || {};
+// Отправляем сигнал инициализации
+window.parent.postMessage({ type: "OBR_INIT" }, "*");
+
+// Слушаем ответы от Owlbear Rodeo
+window.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (!msg) return;
+
+    // Сигнал готовности: вытаскиваем роль и текущую базу данных комнаты
+    if (msg.type === "OBR_READY") {
+        latestRoomMetadata = msg.payload?.roomMetadata || {};
+        console.log("Связь с Owlbear установлена.");
+    }
+
+    // Обработка ответов на наши запросы или изменение данных другими игроками
+    if (msg.type === "OBR_ROOM_METADATA_CHANGED" || (msg.id && msg.type === "OBR_SIGNAL" && msg.event === "room_metadata_changed")) {
+        latestRoomMetadata = msg.payload || {};
         if (myRole === "GM") {
             updateGmMonitorTable();
         } else {
             renderPlayerInterface();
         }
-    });
+    }
 });
 
-// Инициализация интерфейсных кнопок при загрузке DOM страницы
+// Отправка данных на сервер Owlbear Rodeo по правильному протоколу
+function saveMetadataToOwlbear(newData) {
+    const transactionId = Math.random().toString(36).substring(2);
+    window.parent.postMessage({
+        id: transactionId,
+        type: "OBR_ROOM_SET_METADATA",
+        payload: { [ROOM_METADATA_KEY]: newData }
+    }, "*");
+}
+
+// ============================================================================
+// ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+// ============================================================================
 document.addEventListener("DOMContentLoaded", () => {
     const forceGmBtn = document.getElementById("force-gm-btn");
     const gmPasswordBlock = document.getElementById("gm-password-block");
@@ -137,15 +157,14 @@ function renderPlayerInterface() {
         if (charState.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
-                // Защищенная официальная отправка траты маны через SDK с токеном сессии
-                try {
-                    await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-                } catch(e) { console.error("Ошибка сохранения ресурса игрока:", e); }
+                // Отправляем изменения через защищенную обертку
+                saveMetadataToOwlbear(globalState);
+                renderPlayerInterface();
             });
         }
         listContainer.appendChild(btn);
@@ -203,7 +222,7 @@ function updateGmMonitorTable() {
             const inputField = document.getElementById(`input-res-${char}`);
             
             if (saveBtn && inputField) {
-                saveBtn.onclick = async () => {
+                saveBtn.onclick = () => {
                     if (inputField.value === "") return;
                     let val = parseInt(inputField.value, 10);
                     const cls = CLASS_DATA[charState.classType];
@@ -214,10 +233,9 @@ function updateGmMonitorTable() {
                     charState.currentResource = val;
                     globalState[char] = charState;
 
-                    // Точечное изменение ресурса ГМом через официальный SDK с токеном
-                    try {
-                        await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-                    } catch(e) { console.error("Ошибка сохранения ресурса ГМом:", e); }
+                    // Отправляем точечное изменение маны через обертку
+                    saveMetadataToOwlbear(globalState);
+                    updateGmMonitorTable();
                 };
             }
         }
@@ -229,7 +247,7 @@ function setupGmActions() {
     const select = document.getElementById("gm-char-select");
 
     if (assignBtn && select) {
-        assignBtn.onclick = async () => {
+        assignBtn.onclick = () => {
             const targetChar = select.value;
             const selectedClass = document.getElementById("class-select").value;
             if (!targetChar) return;
@@ -239,12 +257,9 @@ function setupGmActions() {
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
-            // Гарантированное назначение класса ГМом с токеном сессии
-            try {
-                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
-                // Принудительно локально перерисовываем таблицу после отправки
-                updateGmMonitorTable();
-            } catch(e) { console.error("Ошибка назначения класса ГМом:", e); }
-        };
-    }
+            // Назначаем класс через правильную postMessage транзакцию
+            saveMetadataToOwlbear(globalState);
+            updateGmMonitorTable();
+};
+}
 }

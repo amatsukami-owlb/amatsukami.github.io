@@ -34,6 +34,7 @@ OBR.onReady(async () => {
     
     // Автоматически перерисовываем интерфейсы при любых изменениях в комнате
     OBR.room.onChange((metadata) => {
+        // Защита: OBR может присылать как полный объект, так и срез метаданных
         latestRoomMetadata = metadata || {};
         if (myRole === "GM") {
             updateGmMonitorTable();
@@ -106,9 +107,16 @@ function setupPlayerLogin() {
 function renderPlayerInterface() {
     if (!activeCharacterName) return;
 
-    // ЗАЩИТА: Если база пустая, создаем объект на лету, чтобы код не падал
-    const currentRoomState = latestRoomMetadata || {};
-    const globalState = currentRoomState[ROOM_METADATA_KEY] || {};
+    // ИСПРАВЛЕНИЕ: Безопасно ищем состояние комнаты в любом формате ответа OBR
+    let globalState = {};
+    if (latestRoomMetadata[ROOM_METADATA_KEY]) {
+        globalState = latestRoomMetadata[ROOM_METADATA_KEY];
+    } else if (latestRoomMetadata.roomMetadata && latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY]) {
+        globalState = latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY];
+    } else {
+        globalState = latestRoomMetadata; // Если OBR прислал чистый срез ключей
+    }
+
     const charState = globalState[activeCharacterName] || { classType: "none", currentResource: 0 };
 
     document.getElementById("char-display-name").innerText = activeCharacterName;
@@ -141,14 +149,17 @@ function renderPlayerInterface() {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 charState.currentResource = nextRes;
                 
-                // Проверяем и подготавливаем структуру перед записью
-                if (!latestRoomMetadata) latestRoomMetadata = {};
-                if (!latestRoomMetadata[ROOM_METADATA_KEY]) latestRoomMetadata[ROOM_METADATA_KEY] = {};
-                
-                latestRoomMetadata[ROOM_METADATA_KEY][activeCharacterName] = charState;
+                // Перезаписываем в правильную структуру
+                const updatePayload = {};
+                updatePayload[ROOM_METADATA_KEY] = globalState;
+                updatePayload[ROOM_METADATA_KEY][activeCharacterName] = charState;
+
+                // Обновляем локально для моментального отклика
+                latestRoomMetadata = updatePayload;
+                renderPlayerInterface();
 
                 try {
-                    await OBR.room.setMetadata(latestRoomMetadata);
+                    await OBR.room.setMetadata(updatePayload);
                 } catch(e) { console.error("Ошибка сохранения ресурса игрока:", e); }
             });
         }
@@ -176,8 +187,16 @@ function updateGmMonitorTable() {
     if (!tableBody) return;
 
     tableBody.innerHTML = "";
-    const currentRoomState = latestRoomMetadata || {};
-    const globalState = currentRoomState[ROOM_METADATA_KEY] || {};
+    
+    // ИСПРАВЛЕНИЕ: Универсальный поиск состояния группы для ГМа
+    let globalState = {};
+    if (latestRoomMetadata[ROOM_METADATA_KEY]) {
+        globalState = latestRoomMetadata[ROOM_METADATA_KEY];
+    } else if (latestRoomMetadata.roomMetadata && latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY]) {
+        globalState = latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY];
+    } else {
+        globalState = latestRoomMetadata;
+    }
 
     ALLOWED_CHARACTERS.forEach(char => {
         const charState = globalState[char] || { classType: "none", currentResource: 0 };
@@ -216,54 +235,51 @@ function updateGmMonitorTable() {
                     if (isNaN(val)) return;
                     val = Math.max(0, Math.min(cls.maxResource, val));
 
+                    // РЕАКТИВНОСТЬ: Мгновенно обновляем локальную память ГМа
                     charState.currentResource = val;
+                    globalState[char] = charState;
                     
-                    if (!latestRoomMetadata) latestRoomMetadata = {};
-                    if (!latestRoomMetadata[ROOM_METADATA_KEY]) latestRoomMetadata[ROOM_METADATA_KEY] = {};
+                    const updatePayload = {};
+                    updatePayload[ROOM_METADATA_KEY] = globalState;
+                    latestRoomMetadata = updatePayload;
                     
-                    latestRoomMetadata[ROOM_METADATA_KEY][char] = charState;
+                    // Перерисовываем таблицу для мгновенного отображения новой цифры
+                    updateGmMonitorTable();
 
+                    // Отправляем легальный запрос в облако OBR
                     try {
-                        await OBR.room.setMetadata(latestRoomMetadata);
-                    } catch(e) { console.error("Ошибка сохранения ресурса ГМом:", e); }
-                };
-            }
-        }
-    });
+                        await OBR.room.setMetadata(updatePayload);
+console.log(Ресурс для ${char} успешно изменен ГМом на ${val});
+} catch(e) { console.error("Ошибка сохранения ресурса ГМом:", e); }
+};
 }
-
+}
+});
+}
 function setupGmActions() {
-    const assignBtn = document.getElementById("assign-btn");
-    const select = document.getElementById("gm-char-select");
-
-    if (assignBtn && select) {
-        assignBtn.onclick = async () => {
-            const targetChar = select.value;
-            const selectedClass = document.getElementById("class-select").value;
-            if (!targetChar) return;
-
-            const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-            
-            // 1. Инициализируем защитные ветки объекта, если комната еще пустая
-            if (!latestRoomMetadata) latestRoomMetadata = {};
-            if (!latestRoomMetadata[ROOM_METADATA_KEY]) latestRoomMetadata[ROOM_METADATA_KEY] = {};
-            
-            // 2. МГНОВЕННО записываем изменения в локальную память плагина (РЕАКТИВНОСТЬ)
-            latestRoomMetadata[ROOM_METADATA_KEY][targetChar] = { 
-                classType: selectedClass, 
-                currentResource: maxRes 
-            };
-
-            // 3. Сразу же принудительно перерисовываем ГМ-таблицу на экране, чтобы Мастер видел результат
-            updateGmMonitorTable();
-
-            // 4. Отправляем легальный запрос в облако Owlbear Rodeo для синхронизации с игроками
-            try {
-                await OBR.room.setMetadata(latestRoomMetadata);
-                console.log(`Класс для ${targetChar} успешно отправлен в облако OBR!`);
-            } catch(e) { 
-                console.error("Ошибка синхронизации метаданных комнаты с сервером OBR:", e); 
-            }
-        };
-    }
+const assignBtn = document.getElementById("assign-btn");
+const select = document.getElementById("gm-char-select");
+if (assignBtn && select) {
+assignBtn.onclick = async () => {
+const targetChar = select.value;
+const selectedClass = document.getElementById("class-select").value;
+if (!targetChar) return;
+const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
+const charState = { classType: selectedClass, currentResource: maxRes };
+let globalState = {};
+if (latestRoomMetadata[ROOM_METADATA_KEY]) {
+globalState = latestRoomMetadata[ROOM_METADATA_KEY];
+} else if (latestRoomMetadata.roomMetadata && latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY]) {
+globalState = latestRoomMetadata.roomMetadata[ROOM_METADATA_KEY];
+}
+globalState[targetChar] = charState;
+const updatePayload = {};
+updatePayload[ROOM_METADATA_KEY] = globalState;
+latestRoomMetadata = updatePayload;
+updateGmMonitorTable();
+try {
+await OBR.room.setMetadata(updatePayload);
+} catch(e) { console.error("Ошибка назначения класса ГМом:", e); }
+};
+}
 }

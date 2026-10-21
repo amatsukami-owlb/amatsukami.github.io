@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Character Sheet Panel</title>
+    <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; box-sizing: border-box; }
         .resource-bar { background: #444; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
@@ -15,7 +16,6 @@
         .gm-link-btn { background: none; border: none; color: #ffc107; text-decoration: underline; cursor: pointer; margin-top: 25px; font-size: 13px; display: inline-block; width: 100%; }
         .error-text { color: #ff4d4d; font-size: 13px; margin-top: 5px; display: none; }
         
-        /* Стили для новой ГМ таблицы */
         .gm-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
         .gm-table th, .gm-table td { padding: 6px; text-align: left; border-bottom: 1px solid #444; vertical-align: middle; }
         .gm-table th { background: #333; color: #aaa; }
@@ -32,7 +32,7 @@
         <p style="color: #aaa; font-size: 14px;">(Например: Mira или Bolt)</p>
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
         <button id="login-char-btn" class="ability-btn">Войти в панель</button>
-        <button id="force-gm-btn" class="gm-link-btn">Открыть панель управления Мастера (GM)</button>
+        <button id="force-gm-btn" class="gm-link-btn">Открыть панель управления... (GM)</button>
         
         <div id="gm-password-block" style="display: none; margin-top: 15px; background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444;">
             <label style="font-size: 13px; display: block; margin-bottom: 8px;">Введите пароль Мастера:</label>
@@ -55,7 +55,6 @@
     <!-- ЭКРАН ГЕЙМ-МАСТЕРА (GM) -->
     <div id="gm-view" style="display: none;">
         <h3>Панель управления Мастера</h3>
-        
         <div class="controls-group">
             <h4>Назначение классов</h4>
             <label for="gm-char-select">Выберите персонажа:</label>
@@ -70,7 +69,6 @@
             <button id="assign-btn" class="ability-btn">Установить класс и сбросить ресурс</button>
         </div>
 
-        <!-- МОНИТОР ГРУППЫ С ТОЧЕЧНЫМ УПРАВЛЕНИЕМ -->
         <div class="controls-group">
             <h4>Мониторинг группы</h4>
             <table class="gm-table">
@@ -82,9 +80,7 @@
                         <th>Изменить</th>
                     </tr>
                 </thead>
-                <tbody id="gm-mon-table-body">
-                    <!-- Сюда скрипт вставит строки группы -->
-                </tbody>
+                <tbody id="gm-mon-table-body"></tbody>
             </table>
         </div>
     </div>

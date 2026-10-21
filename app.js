@@ -1,5 +1,4 @@
- // 2.0.1
-
+// 2.0.4
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -22,38 +21,32 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 let myRole = "PLAYER";
 let activeCharacterName = null; 
 
-// Запуск инициализации через официальный SDK
-function initPlugin() {
-    if (typeof OBR === "undefined") return;
-    clearInterval(checkObrInterval);
+// НАПРЯМУЮ ЗАПУСКАЕМ НА СТАРТЕ ФАЙЛА
+OBR.onReady(async () => {
+    try {
+        console.log("Официальный мост OBR успешно подключен!");
+        myRole = await OBR.player.getRole();
+        console.log("Ваша роль в лобби:", myRole);
 
-    OBR.onReady(async () => {
-        try {
-            console.log("Связь с оригинальным OBR SDK установлена!");
-            myRole = await OBR.player.getRole();
-
-            if (myRole === "GM") {
-                document.getElementById("gm-view").style.display = "block";
-                document.getElementById("player-setup-view").style.display = "none";
-                buildGmCharacterSelect();
-                setupGmActions();
+        if (myRole === "GM") {
+            // Если зашел Мастер — скрываем окно ввода игрока и включаем ГМ-панель
+            document.getElementById("gm-view").style.display = "block";
+            document.getElementById("player-setup-view").style.display = "none";
+            buildGmCharacterSelect();
+            setupGmActions();
+            await updateGmViewData();
+            
+            OBR.room.onChange(async () => {
                 await updateGmViewData();
-                
-                OBR.room.onChange(async () => {
-                    await updateGmViewData();
-                });
-            } else {
-                document.getElementById("gm-view").style.display = "none";
-                document.getElementById("player-setup-view").style.display = "block";
-                setupPlayerLogin();
-            }
-        } catch (e) {
-            console.error("Ошибка при старте OBR:", e);
+            });
+        } else {
+            // Если зашел игрок — он и так уже видит стартовое окно ввода имени
+            setupPlayerLogin();
         }
-    });
-}
-
-const checkObrInterval = setInterval(initPlugin, 100);
+    } catch (e) {
+        console.error("Ошибка при инициализации OBR:", e);
+    }
+});
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER)

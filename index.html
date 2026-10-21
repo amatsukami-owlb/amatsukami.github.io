@@ -16,19 +16,23 @@
         .input-inline button { margin: 0; padding: 0 15px; white-space: nowrap; width: auto; }
         .token-header { border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; color: #ffc107; }
         .setup-screen { text-align: center; padding-top: 40px; }
+        .gm-link-btn { background: none; border: none; color: #ffc107; text-decoration: underline; cursor: pointer; margin-top: 25px; font-size: 13px; display: inline-block; width: 100%; }
     </style>
 </head>
 <body>
 
-    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА (По умолчанию открыт сразу, чтобы не было черного окна!) -->
+    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА / МАСТЕРА -->
     <div id="player-setup-view" class="setup-screen">
         <h3>Введите имя вашего персонажа</h3>
         <p style="color: #aaa; font-size: 14px;">(Например: Mira или Bolt)</p>
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
         <button id="login-char-btn" class="ability-btn">Войти в панель</button>
+        
+        <!-- Кнопка аварийного переключения для ГМа -->
+        <button id="force-gm-btn" class="gm-link-btn">Открыть панель управления Мастера (GM)</button>
     </div>
 
-    <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА (Изначально скрыт) -->
+    <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА -->
     <div id="player-main-view" style="display: none;">
         <h2 id="char-display-name" class="token-header">Имя Персонажа</h2>
         <h3 id="class-title">Класс не назначен</h3>
@@ -36,7 +40,7 @@
         <div id="abilities-list"></div>
     </div>
 
-    <!-- ЭКРАН ГЕЙМ-МАСТЕРА (Изначально скрыт) -->
+    <!-- ЭКРАН ГЕЙМ-МАСТЕРА (GM) -->
     <div id="gm-view" style="display: none;">
         <h3>Панель управления Мастера</h3>
         <div class="controls-group">

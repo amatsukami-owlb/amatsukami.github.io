@@ -1,4 +1,4 @@
-// 2.1.0
+// 2.1.1
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -20,34 +20,31 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 
 let myRole = "PLAYER";
 let activeCharacterName = null; 
-let latestRoomMetadata = {}; // Локальная копия базы данных
+let latestRoomMetadata = {}; 
 
 // ============================================================================
-// НАДЕЖНЫЙ СЕТЕВОЙ МОСТ (Нативные postMessage сообщения)
+// ОФИЦИАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ И СИНХРОНИЗАЦИЯ С СЕРВЕРОМ OBR
 // ============================================================================
-window.parent.postMessage({ type: "OBR_INIT" }, "*");
+OBR.onReady(async () => {
+    // Получаем самый свежий слепок глобальной комнаты при старте
+    try {
+        latestRoomMetadata = await OBR.room.getMetadata();
+    } catch(e) { latestRoomMetadata = {}; }
+    
+    console.log("Официальный мост OBR подключен к базе данных комнаты.");
 
-window.addEventListener("message", (event) => {
-    const msg = event.data;
-    if (!msg) return;
-
-    if (msg.type === "OBR_READY") {
-        latestRoomMetadata = msg.payload?.roomMetadata || {};
-        console.log("Мост готов! Синхронизация данных выполнена.");
-        if (myRole === "GM") { updateGmMonitorTable(); }
-    }
-
-    if (msg.type === "OBR_ROOM_METADATA_CHANGED") {
-        latestRoomMetadata = msg.payload || {};
+    // Автоматически перерисовываем интерфейсы при любых изменениях в комнате
+    OBR.room.onChange((metadata) => {
+        latestRoomMetadata = metadata || {};
         if (myRole === "GM") {
             updateGmMonitorTable();
         } else {
             renderPlayerInterface();
         }
-    }
+    });
 });
 
-// Инициализация при загрузке DOM
+// Инициализация интерфейсных кнопок при загрузке DOM страницы
 document.addEventListener("DOMContentLoaded", () => {
     const forceGmBtn = document.getElementById("force-gm-btn");
     const gmPasswordBlock = document.getElementById("gm-password-block");
@@ -140,16 +137,15 @@ function renderPlayerInterface() {
         if (charState.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.addEventListener("click", () => {
+            btn.addEventListener("click", async () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
-                // Нативная безопасная отправка метаданных
-                window.parent.postMessage({
-                    type: "OBR_ROOM_SET_METADATA",
-                    payload: { [ROOM_METADATA_KEY]: globalState }
-                }, "*");
+                // Защищенная официальная отправка траты маны через SDK с токеном сессии
+                try {
+                    await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
+                } catch(e) { console.error("Ошибка сохранения ресурса игрока:", e); }
             });
         }
         listContainer.appendChild(btn);
@@ -191,7 +187,6 @@ function updateGmMonitorTable() {
             classLabel = cls.className;
             resourceLabel = `${charState.currentResource} / ${cls.maxResource}`;
             
-            // Генерируем поле ввода и кнопку «ОК» ИНДИВИДУАЛЬНО для каждого персонажа в таблице
             inputHtml = `
                 <div class="table-input-group">
                     <input type="number" id="input-res-${char}" min="0" max="${cls.maxResource}" placeholder="Цифра">
@@ -203,13 +198,12 @@ function updateGmMonitorTable() {
         tr.innerHTML = `<td><b>${char}</b></td><td>${classLabel}</td><td>${resourceLabel}</td><td>${inputHtml}</td>`;
         tableBody.appendChild(tr);
 
-        // Вешаем обработчик клика на индивидуальную кнопку «ОК» персонажа
         if (charState.classType !== "none" && CLASS_DATA[charState.classType]) {
             const saveBtn = document.getElementById(`btn-save-${char}`);
             const inputField = document.getElementById(`input-res-${char}`);
             
             if (saveBtn && inputField) {
-                saveBtn.onclick = () => {
+                saveBtn.onclick = async () => {
                     if (inputField.value === "") return;
                     let val = parseInt(inputField.value, 10);
                     const cls = CLASS_DATA[charState.classType];
@@ -220,11 +214,10 @@ function updateGmMonitorTable() {
                     charState.currentResource = val;
                     globalState[char] = charState;
 
-                    // Нативная гарантированная отправка измененной маны
-                    window.parent.postMessage({
-                        type: "OBR_ROOM_SET_METADATA",
-                        payload: { [ROOM_METADATA_KEY]: globalState }
-                    }, "*");
+                    // Точечное изменение ресурса ГМом через официальный SDK с токеном
+                    try {
+                        await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
+                    } catch(e) { console.error("Ошибка сохранения ресурса ГМом:", e); }
                 };
             }
         }
@@ -236,7 +229,7 @@ function setupGmActions() {
     const select = document.getElementById("gm-char-select");
 
     if (assignBtn && select) {
-        assignBtn.onclick = () => {
+        assignBtn.onclick = async () => {
             const targetChar = select.value;
             const selectedClass = document.getElementById("class-select").value;
             if (!targetChar) return;
@@ -246,11 +239,12 @@ function setupGmActions() {
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
-            // Нативная гарантированная отправка нового класса
-            window.parent.postMessage({
-                type: "OBR_ROOM_SET_METADATA",
-                payload: { [ROOM_METADATA_KEY]: globalState }
-            }, "*");
+            // Гарантированное назначение класса ГМом с токеном сессии
+            try {
+                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
+                // Принудительно локально перерисовываем таблицу после отправки
+                updateGmMonitorTable();
+            } catch(e) { console.error("Ошибка назначения класса ГМом:", e); }
         };
     }
 }

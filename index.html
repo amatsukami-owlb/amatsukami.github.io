@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <title>Character Sheet Panel</title>
+    <!-- Официальный и стабильный SDK Owlbear Rodeo -->
+    <script src="https://jsdelivr.net"></script>
     <style>
         body { font-family: sans-serif; background: #222; color: #fff; padding: 15px; margin: 0; box-sizing: border-box; }
         .resource-bar { background: #444; border-radius: 5px; padding: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
         .ability-btn { display: block; width: 100%; padding: 10px; margin: 8px 0; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 14px; }
         .ability-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
-        
         .controls-group { background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444; margin-top: 15px; }
         .input-inline { display: flex; gap: 8px; margin-bottom: 10px; }
         select, input { width: 100%; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
@@ -20,12 +21,12 @@
 </head>
 <body>
 
-    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА (Ввод имени персонажа) -->
+    <!-- ЭКРАН ВХОДА ДЛЯ ИГРОКА -->
     <div id="player-setup-view" style="display: none;" class="setup-screen">
         <h3>Введите имя вашего персонажа</h3>
         <p style="color: #aaa; font-size: 14px;">(Например: Mira или Bolt)</p>
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
-        <button id="login-char-btn" class="ability-btn">Войти в ...</button>
+        <button id="login-char-btn" class="ability-btn">Войти в панель</button>
     </div>
 
     <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА -->

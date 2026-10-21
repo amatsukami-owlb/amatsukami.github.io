@@ -1,6 +1,4 @@
-// 2.1.2
-
-const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
+const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"]; // 2.2.0
 
 const CLASS_DATA = {
     warrior: { className: "Воин", resourceName: "Выносливость", maxResource: 100,
@@ -23,48 +21,32 @@ let myRole = "PLAYER";
 let activeCharacterName = null; 
 let latestRoomMetadata = {}; 
 
-// ============================================================================
-// ГАРАНТИРОВАННЫЙ СЕТЕВОЙ МОСТ (Прямые сообщения с оберткой транзакции)
-// ============================================================================
+// Функция для безопасной отправки данных фоновому скрипту
+function sendDataToBackgroundScript(globalState) {
+    // Ищем окно фонового скрипта в иерархии Owlbear и отправляем ему команду
+    window.parent.postMessage({
+        source: "owlbear-ability-popover",
+        type: "UPDATE_ROOM_METADATA",
+        payload: globalState
+    }, "*");
+}
 
-// Отправляем сигнал инициализации
-window.parent.postMessage({ type: "OBR_INIT" }, "*");
+OBR.onReady(async () => {
+    try {
+        latestRoomMetadata = await OBR.room.getMetadata();
+    } catch(e) { latestRoomMetadata = {}; }
 
-// Слушаем ответы от Owlbear Rodeo
-window.addEventListener("message", (event) => {
-    const msg = event.data;
-    if (!msg) return;
-
-    // Сигнал готовности: вытаскиваем роль и текущую базу данных комнаты
-    if (msg.type === "OBR_READY") {
-        latestRoomMetadata = msg.payload?.roomMetadata || {};
-        console.log("Связь с Owlbear установлена.");
-    }
-
-    // Обработка ответов на наши запросы или изменение данных другими игроками
-    if (msg.type === "OBR_ROOM_METADATA_CHANGED" || (msg.id && msg.type === "OBR_SIGNAL" && msg.event === "room_metadata_changed")) {
-        latestRoomMetadata = msg.payload || {};
+    // Следим за автоматическим обновлением экранов, когда фоновый скрипт меняет базу данных
+    OBR.room.onChange((metadata) => {
+        latestRoomMetadata = metadata || {};
         if (myRole === "GM") {
             updateGmMonitorTable();
         } else {
             renderPlayerInterface();
         }
-    }
+    });
 });
 
-// Отправка данных на сервер Owlbear Rodeo по правильному протоколу
-function saveMetadataToOwlbear(newData) {
-    const transactionId = Math.random().toString(36).substring(2);
-    window.parent.postMessage({
-        id: transactionId,
-        type: "OBR_ROOM_SET_METADATA",
-        payload: { [ROOM_METADATA_KEY]: newData }
-    }, "*");
-}
-
-// ============================================================================
-// ИНИЦИАЛИЗАЦИЯ ИНТЕРФЕЙСА ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
-// ============================================================================
 document.addEventListener("DOMContentLoaded", () => {
     const forceGmBtn = document.getElementById("force-gm-btn");
     const gmPasswordBlock = document.getElementById("gm-password-block");
@@ -99,9 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setupPlayerLogin();
 });
 
-// ==========================================
-// ЛОГИКА ДЛЯ ИГРОКА (PLAYER)
-// ==========================================
 function setupPlayerLogin() {
     const loginBtn = document.getElementById("login-char-btn");
     const inputField = document.getElementById("character-name-input");
@@ -162,18 +141,14 @@ function renderPlayerInterface() {
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
-                // Отправляем изменения через защищенную обертку
-                saveMetadataToOwlbear(globalState);
-                renderPlayerInterface();
+                // Вместо OBR.room.setMetadata шлем данные фоновому мосту!
+                sendDataToBackgroundScript(globalState);
             });
         }
         listContainer.appendChild(btn);
     });
 }
 
-// ==========================================
-// ЛОГИКА ДЛЯ МАСТЕРА (GM)
-// ==========================================
 function buildGmCharacterSelect() {
     const select = document.getElementById("gm-char-select");
     if (!select) return;
@@ -233,9 +208,8 @@ function updateGmMonitorTable() {
                     charState.currentResource = val;
                     globalState[char] = charState;
 
-                    // Отправляем точечное изменение маны через обертку
-                    saveMetadataToOwlbear(globalState);
-                    updateGmMonitorTable();
+                    // Шлем данные фоновому мосту
+                    sendDataToBackgroundScript(globalState);
                 };
             }
         }
@@ -257,9 +231,8 @@ function setupGmActions() {
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
-            // Назначаем класс через правильную postMessage транзакцию
-            saveMetadataToOwlbear(globalState);
-            updateGmMonitorTable();
-};
-}
+            // Шлем данные фоновому мосту для легальной записи класса
+            sendDataToBackgroundScript(globalState);
+        };
+    }
 }

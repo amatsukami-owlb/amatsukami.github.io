@@ -1,6 +1,3 @@
-// ============================================================================
-// ПУЛ ИМЕН ВАШИХ ПЕРСОНАЖЕЙ (Сюда вписывайте кого угодно)
-// ============================================================================
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -21,31 +18,53 @@ const CLASS_DATA = {
 const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 
 let myRole = "PLAYER";
-let activeCharacterName = null; // Для игрока: кого он контролирует в этой вкладке
+let activeCharacterName = null; 
+let latestRoomMetadata = {}; // Локальный слепок базы данных
 
-OBR.onReady(async () => {
-    console.log("Мост OBR успешно инициализирован!");
-    myRole = await OBR.player.getRole();
+// ============================================================================
+// ПРЯМОЙ НАВТИВНЫЙ МОСТ С OWLBEAR RODEO (Без внешних SDK)
+// ============================================================================
 
+// Инициализируем подключение к Owlbear Rodeo
+window.parent.postMessage({ type: "OBR_INIT" }, "*");
+
+// Слушаем ответы от главной страницы Owlbear Rodeo
+window.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (!msg) return;
+
+    // Сигнал готовности: Owlbear передал нам роль, ID и текущее состояние комнаты
+    if (msg.type === "OBR_READY") {
+        myRole = msg.payload?.role || "PLAYER";
+        latestRoomMetadata = msg.payload?.roomMetadata || {};
+        
+        console.log("Соединение с Owlbear установлено! Моя роль:", myRole);
+        startPluginInterface();
+    }
+
+    // Синхронизация: данные в комнате изменились (кто-то обновил ману или класс)
+    if (msg.type === "OBR_ROOM_METADATA_CHANGED") {
+        latestRoomMetadata = msg.payload || {};
+        
+        if (myRole === "GM") {
+            updateGmViewData();
+        } else {
+            renderPlayerInterface();
+        }
+    }
+});
+
+function startPluginInterface() {
     if (myRole === "GM") {
-        // Включаем ГМ-экран
         document.getElementById("gm-view").style.display = "block";
         buildGmCharacterSelect();
         setupGmActions();
-        await updateGmViewData();
-        
-        // Мастер слушает любые изменения маны от игроков в реальном времени
-        window.addEventListener("message", (e) => {
-            if (e.data && e.data.type === "OBR_ROOM_METADATA_CHANGED") {
-                updateGmViewData();
-            }
-        });
+        updateGmViewData();
     } else {
-        // Включаем экран логина для игрока
         document.getElementById("player-setup-view").style.display = "block";
         setupPlayerLogin();
     }
-});
+}
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER)
@@ -54,42 +73,28 @@ function setupPlayerLogin() {
     const loginBtn = document.getElementById("login-char-btn");
     const inputField = document.getElementById("character-name-input");
 
-    loginBtn.onclick = async () => {
+    loginBtn.onclick = () => {
         const enteredName = inputField.value.trim();
-        
-        // Защита от дурака: проверяем, есть ли такое имя в пуле
         const matchedName = ALLOWED_CHARACTERS.find(c => c.toLowerCase() === enteredName.toLowerCase());
 
         if (!matchedName) {
-            alert(`Персонаж с именем "${enteredName}" не найден в списке группы. Доступные имена: ${ALLOWED_CHARACTERS.join(", ")}`);
+            alert(`Персонаж не найден. Доступные имена: ${ALLOWED_CHARACTERS.join(", ")}`);
             return;
         }
 
         activeCharacterName = matchedName;
         
-        // Переключаем экраны
         document.getElementById("player-setup-view").style.display = "none";
         document.getElementById("player-main-view").style.display = "block";
 
-        await renderPlayerInterface();
-
-        // Слушаем изменения (если ГМ поменяет ману, экран игрока обновится сам)
-        window.addEventListener("message", (e) => {
-            if (e.data && e.data.type === "OBR_ROOM_METADATA_CHANGED") {
-                renderPlayerInterface();
-            }
-        });
+        renderPlayerInterface();
     };
 }
 
-async function renderPlayerInterface() {
+function renderPlayerInterface() {
     if (!activeCharacterName) return;
 
-    // Вытаскиваем глобальное состояние комнаты из OBR
-    const context = window.OBR?.context?.roomMetadata || {};
-    const globalState = context[ROOM_METADATA_KEY] || {};
-    
-    // Ищем данные конкретно нашего персонажа
+    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
     const charState = globalState[activeCharacterName] || { classType: "none", currentResource: 0 };
 
     document.getElementById("char-display-name").innerText = activeCharacterName;
@@ -117,19 +122,17 @@ async function renderPlayerInterface() {
         if (charState.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.addEventListener("click", async () => {
+            btn.addEventListener("click", () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 
-                // Перезаписываем данные в глобальное облако комнаты OBR
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
+                // Напрямую отправляем обновленное состояние в Owlbear Rodeo
                 window.parent.postMessage({
                     type: "OBR_ROOM_SET_METADATA",
                     payload: { [ROOM_METADATA_KEY]: globalState }
                 }, "*");
-
-                renderPlayerInterface();
             });
         }
         listContainer.appendChild(btn);
@@ -149,20 +152,18 @@ function buildGmCharacterSelect() {
         select.appendChild(opt);
     });
 
-    // При смене персонажа в списке — обновляем текст его текущего состояния
-    select.onchange = async () => {
-        await updateGmViewData();
+    select.onchange = () => {
+        updateGmViewData();
     };
 }
 
-async function updateGmViewData() {
+function updateGmViewData() {
     const select = document.getElementById("gm-char-select");
     const statusLabel = document.getElementById("gm-status-label");
     if (!select || !statusLabel) return;
 
     const targetChar = select.value;
-    const context = window.OBR?.context?.roomMetadata || {};
-    const globalState = context[ROOM_METADATA_KEY] || {};
+    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
     const charState = globalState[targetChar] || { classType: "none", currentResource: 0 };
 
     if (charState.classType === "none" || !CLASS_DATA[charState.classType]) {
@@ -187,9 +188,7 @@ function setupGmActions() {
             if (!targetChar) return;
 
             const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-            
-            const context = window.OBR?.context?.roomMetadata || {};
-            const globalState = context[ROOM_METADATA_KEY] || {};
+            const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
@@ -197,8 +196,6 @@ function setupGmActions() {
                 type: "OBR_ROOM_SET_METADATA",
                 payload: { [ROOM_METADATA_KEY]: globalState }
             }, "*");
-
-            updateGmViewData();
         };
     }
 
@@ -208,8 +205,7 @@ function setupGmActions() {
             const inputField = document.getElementById("manual-resource-input");
             if (!targetChar || !inputField || inputField.value === "") return;
 
-            const context = window.OBR?.context?.roomMetadata || {};
-            const globalState = context[ROOM_METADATA_KEY] || {};
+            const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
             const charState = globalState[targetChar];
 
             if (charState && charState.classType !== "none" && CLASS_DATA[charState.classType]) {
@@ -227,7 +223,6 @@ function setupGmActions() {
                 }, "*");
 
                 inputField.value = "";
-                updateGmViewData();
             } else {
                 alert("Сначала назначьте класс этому персонажу!");
             }

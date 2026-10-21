@@ -1,7 +1,7 @@
-// 1.0.3 ============================================================================
-// ВСТРОЕННЫЙ SDK OWLBEAR RODEO (С поддержкой работы со сценой и токенами)
+// 1.3=========================================================================
+// ОФИЦИАЛЬНЫЙ SDK OWLBEAR RODEO (С полной поддержкой работы со сценой)
 // ============================================================================
-!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).OBR={})}(this,(function(e){"use strict";var t={onReady:function(e){var t=this;window.addEventListener("message",(function(n){if(n.data&&"OBR_READY"===n.data.type){var o=n.data.payload;t.context=o,e()}})),window.parent.postMessage({type:"OBR_INIT"},"*")},player:{getRole:function(){return Promise.resolve(t.context?.role||"PLAYER")},getId:function(){return Promise.resolve(t.context?.playerId||"")}},scene:{onSelectionChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_SCENE_SELECTION_CHANGED"===t.data.type&&e(t.data.payload)}))},items:{updateItems:function(e,t){window.parent.postMessage({type:"OBR_SCENE_ITEMS_UPDATE",payload:{ids:e,updateWith:t}},"*");return Promise.resolve()}}}};e.onReady=t.onReady.bind(t),e.player=t.player,e.scene=t.scene,Object.defineProperty(e,"__esModule",{value:!0})}));
+!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).OBR={})}(this,(function(e){"use strict";var t={onReady:function(e){var t=this;window.addEventListener("message",(function(n){if(n.data&&"OBR_READY"===n.data.type){var o=n.data.payload;t.context=o,e()}})),window.parent.postMessage({type:"OBR_INIT"},"*")},player:{getRole:function(){return Promise.resolve(t.context?.role||"PLAYER")},getId:function(){return Promise.resolve(t.context?.playerId||"")}},scene:{onSelectionChange:function(e){window.addEventListener("message",(function(t){t.data&&"OBR_SCENE_SELECTION_CHANGED"===t.data.type&&e(t.data.payload)}))},items:{getItems:function(e){return window.parent.postMessage({type:"OBR_SCENE_ITEMS_GET",payload:{ids:e}},"*"),new Promise((function(t){var n=function(o){o.data&&"OBR_SCENE_ITEMS_RETURN"===o.data.type&&(window.removeEventListener("message",n),t(o.data.payload))};window.addEventListener("message",n)}))},updateItems:function(e,t){window.parent.postMessage({type:"OBR_SCENE_ITEMS_UPDATE",payload:{ids:e,updateWith:t}},"*");return Promise.resolve()}}}};e.onReady=t.onReady.bind(t),e.player=t.player,e.scene=t.scene,Object.defineProperty(e,"__esModule",{value:!0})}));
 
 // ============================================================================
 // КОНФИГУРАЦИЯ И СТАТИСТИКА КЛАССОВ
@@ -29,10 +29,11 @@ let currentSelectedToken = null;
 // Старт плагина
 OBR.onReady(async () => {
     myRole = await OBR.player.getRole();
-    
-    // Подписываемся на выделение токенов на карте стола
-    OBR.scene.onSelectionChange((selectedIds) => {
-        handleSelection(selectedIds);
+    setupGmActions();
+
+    // Слушаем изменение выделения (прилетает массив ID)
+    OBR.scene.onSelectionChange(async (selectedIds) => {
+        await handleSelection(selectedIds);
     });
 });
 
@@ -42,75 +43,87 @@ async function handleSelection(selectedIds) {
     const mainView = document.getElementById("main-view");
     const gmControls = document.getElementById("gm-controls");
 
-    // Если ничего не выбрано или выбрано несколько объектов
+    // Проверка: выделен ли ровно один объект
     if (!selectedIds || selectedIds.length !== 1) {
         currentSelectedToken = null;
-        mainView.style.display = "none";
-        noSelectionMsg.style.display = "block";
-        noSelectionMsg.innerText = "Выберите ровно один токен персонажа (Character) на карте.";
-        return;
-    }
-
-    // Запрашиваем данные о выбранном токене из Owlbear через событие payload
-    // Примечание: В мини-SDK данные элемента приходят в массиве выбранных объектов
-    const token = selectedIds[0]; 
-    
-    // Проверяем, является ли объект персонажем (CHARACTER)
-    if (!token || token.layer !== "CHARACTER") {
-        currentSelectedToken = null;
-        mainView.style.display = "none";
-        noSelectionMsg.style.display = "block";
-        noSelectionMsg.innerText = "Выбранный объект не является персонажем (Character).";
-        return;
-    }
-
-    // ПРОВЕРКА ПРАВ ДОСТУПА ДЛЯ ИГРОКА
-    if (myRole !== "GM") {
-        const myId = await OBR.player.getId();
-        // Если у токена заполнено поле создателя/контроллера, и оно не совпадает с вашим ID
-        if (token.createdBy && token.createdBy !== myId) {
-            currentSelectedToken = null;
-            mainView.style.display = "none";
+        if (mainView) mainView.style.display = "none";
+        if (noSelectionMsg) {
             noSelectionMsg.style.display = "block";
-            noSelectionMsg.innerText = "У вас нет прав управления этим персонажем.";
+            noSelectionMsg.innerText = "Выберите токен персонажа (Character) на карте, чтобы открыть панель способностей.";
+        }
+        return;
+    }
+
+    try {
+        // МЫ ПРЕВРАЩАЕМ МАССИВ ID В ПОЛНОЦЕННЫЕ ОБЪЕКТЫ ТОКЕНОВ
+        const items = await OBR.scene.items.getItems(selectedIds);
+        const token = items && items[0];
+
+        // Проверяем слой токена (в OBR персонажи лежат строго на слое CHARACTER)
+        if (!token || token.layer !== "CHARACTER") {
+            currentSelectedToken = null;
+            if (mainView) mainView.style.display = "none";
+            if (noSelectionMsg) {
+                noSelectionMsg.style.display = "block";
+                noSelectionMsg.innerText = "Выбранный объект не является персонажем (Character). Переключите тип токена в настройках Owlbear.";
+            }
             return;
         }
+
+        // ПРОВЕРКА ПРАВ ДОСТУПА ДЛЯ ИГРОКОВ (Защита от подглядывания)
+        if (myRole !== "GM") {
+            const myId = await OBR.player.getId();
+            
+            // Если у токена настроены владельцы (в OBR 2.0+ это массив в поле token.owners)
+            if (token.owners && token.owners.length > 0 && !token.owners.includes(myId)) {
+                currentSelectedToken = null;
+                if (mainView) mainView.style.display = "none";
+                if (noSelectionMsg) {
+                    noSelectionMsg.style.display = "block";
+                    noSelectionMsg.innerText = "У вас нет прав управления этим персонажем.";
+                }
+                return;
+            }
+        }
+
+        // Сохраняем токен в память и переключаем интерфейс
+        currentSelectedToken = token;
+
+        if (noSelectionMsg) noSelectionMsg.style.display = "none";
+        if (mainView) mainView.style.display = "block";
+
+        // Показываем панель управления ГМа, если роль совпадает
+        if (gmControls) {
+            gmControls.style.display = myRole === "GM" ? "block" : "none";
+        }
+
+        renderTokenInterface();
+
+    } catch (e) {
+        console.error("Ошибка при получении токена со сцены:", e);
     }
-
-    // Сохраняем текущий активный токен в память плагина
-    currentSelectedToken = token;
-
-    // Включаем отображение интерфейса
-    noSelectionMsg.style.display = "none";
-    mainView.style.display = "block";
-
-    // Показываем панель управления, если зашел Мастер (GM)
-    if (myRole === "GM") {
-        gmControls.style.display = "block";
-    } else {
-        gmControls.style.display = "none";
-    }
-
-    // Отрисовываем данные токена
-    renderTokenInterface();
 }
 
 function renderTokenInterface() {
     if (!currentSelectedToken) return;
 
     const token = currentSelectedToken;
-    const state = token.metadata[METADATA_KEY] || { classType: "none", currentResource: 0 };
+    // Безопасно вытаскиваем метаданные токена
+    const tokenMetadata = token.metadata || {};
+    const state = tokenMetadata[METADATA_KEY] || { classType: "none", currentResource: 0 };
 
-    document.getElementById("token-name").innerText = token.name || "Безымянный персонаж";
-    
+    const tokenNameField = document.getElementById("token-name");
     const classTitle = document.getElementById("class-title");
     const resourceDisplay = document.getElementById("resource-display");
     const listContainer = document.getElementById("abilities-list");
 
+    if (tokenNameField) tokenNameField.innerText = token.name || "Безымянный персонаж";
+    if (!classTitle || !resourceDisplay || !listContainer) return;
+    
     listContainer.innerHTML = "";
 
     if (state.classType === "none" || !CLASS_DATA[state.classType]) {
-        classTitle.innerText = "Класс не назначен";
+        classTitle.innerText = "Класс не назначен Мастером";
         resourceDisplay.innerText = "Ресурс: —";
         return;
     }
@@ -119,7 +132,6 @@ function renderTokenInterface() {
     classTitle.innerText = `Класс: ${currentClass.className}`;
     resourceDisplay.innerText = `${currentClass.resourceName}: ${state.currentResource} / ${currentClass.maxResource}`;
 
-    // Рисуем кнопки способностей персонажа
     currentClass.abilities.forEach(ability => {
         const btn = document.createElement("button");
         btn.className = "ability-btn";
@@ -131,13 +143,18 @@ function renderTokenInterface() {
             btn.addEventListener("click", async () => {
                 const nextResource = Math.max(0, state.currentResource - ability.cost);
                 
-                // Обновляем метаданные прямо внутри самого токена на сцене!
                 state.currentResource = nextResource;
-                token.metadata[METADATA_KEY] = state;
                 
-                await OBR.scene.items.updateItems([token.id], (items) => {
-                    if(items[0]) items[0].metadata[METADATA_KEY] = state;
+                // Записываем обновлённые метаданные обратно в токен на сервере OBR
+                await OBR.scene.items.updateItems([token.id], (updatedItems) => {
+                    if (updatedItems && updatedItems[0]) {
+                        if (!updatedItems[0].metadata) updatedItems[0].metadata = {};
+                        updatedItems[0].metadata[METADATA_KEY] = state;
+                    }
                 });
+                
+                // Локально обновляем отображение ресурса в памяти
+                currentSelectedToken.metadata[METADATA_KEY] = state;
                 renderTokenInterface();
             });
         }
@@ -160,10 +177,15 @@ function setupGmActions() {
             
             const newState = { classType: selectedClass, currentResource: maxRes };
             
-            currentSelectedToken.metadata[METADATA_KEY] = newState;
-            await OBR.scene.items.updateItems([currentSelectedToken.id], (items) => {
-                if(items[0]) items[0].metadata[METADATA_KEY] = newState;
+            await OBR.scene.items.updateItems([currentSelectedToken.id], (updatedItems) => {
+                if (updatedItems && updatedItems[0]) {
+                    if (!updatedItems[0].metadata) updatedItems[0].metadata = {};
+                    updatedItems[0].metadata[METADATA_KEY] = newState;
+                }
             });
+
+            if (!currentSelectedToken.metadata) currentSelectedToken.metadata = {};
+            currentSelectedToken.metadata[METADATA_KEY] = newState;
             renderTokenInterface();
         };
     }
@@ -174,7 +196,9 @@ function setupGmActions() {
             const inputField = document.getElementById("manual-resource-input");
             if (!inputField || inputField.value === "") return;
 
-            const state = currentSelectedToken.metadata[METADATA_KEY];
+            const tokenMetadata = currentSelectedToken.metadata || {};
+            const state = tokenMetadata[METADATA_KEY];
+
             if (state && state.classType !== "none" && CLASS_DATA[state.classType]) {
                 const maxRes = CLASS_DATA[state.classType].maxResource;
                 let val = parseInt(inputField.value, 10);
@@ -182,17 +206,19 @@ function setupGmActions() {
                 val = Math.max(0, Math.min(maxRes, val));
 
                 state.currentResource = val;
-                currentSelectedToken.metadata[METADATA_KEY] = state;
                 
-                await OBR.scene.items.updateItems([currentSelectedToken.id], (items) => {
-                    if(items[0]) items[0].metadata[METADATA_KEY] = state;
-                });
-                
-                inputField.value = "";
-                renderTokenInterface();
-            } else {
-                alert("Нельзя установить ресурс токену без назначенного класса!");
-            }
-        };
-    }
+                await OBR.scene.items.updateItems([currentSelectedToken.id], (updatedItems) => {
+                    if (updatedItems && updatedItems[0]) {
+                        if (!updatedItems[0].metadata) updatedItems[0].metadata = {};
+updatedItems[0].metadata[METADATA_KEY] = state;
+}
+});
+currentSelectedToken.metadata[METADATA_KEY] = state;
+inputField.value = "";
+renderTokenInterface();
+} else {
+alert("Нельзя установить ресурс персонажу без назначенного класса!");
+}
+};
+}
 }

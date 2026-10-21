@@ -1,4 +1,5 @@
-// 1.0.6
+ // 2.0.1
+
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -20,60 +21,39 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 
 let myRole = "PLAYER";
 let activeCharacterName = null; 
-let latestRoomMetadata = {}; 
 
-// ============================================================================
-// НАТИВНЫЙ МОСТ С OWLBEAR RODEO
-// ============================================================================
+// Запуск инициализации через официальный SDK
+function initPlugin() {
+    if (typeof OBR === "undefined") return;
+    clearInterval(checkObrInterval);
 
-window.parent.postMessage({ type: "OBR_INIT" }, "*");
+    OBR.onReady(async () => {
+        try {
+            console.log("Связь с оригинальным OBR SDK установлена!");
+            myRole = await OBR.player.getRole();
 
-window.addEventListener("message", (event) => {
-    const msg = event.data;
-    if (!msg) return;
-
-    if (msg.type === "OBR_READY") {
-        myRole = msg.payload?.role || "PLAYER";
-        latestRoomMetadata = msg.payload?.roomMetadata || {};
-        console.log("OBR_READY получен! Роль:", myRole);
-        startPluginInterface();
-    }
-
-    if (msg.type === "OBR_ROOM_METADATA_CHANGED") {
-        latestRoomMetadata = msg.payload || {};
-        if (myRole === "GM") { updateGmViewData(); } else { renderPlayerInterface(); }
-    }
-});
-
-// АВАРИЙНЫЙ РУЧНОЙ СТАРТ: Если через 1 секунду OBR не ответил, включаем плагин принудительно!
-setTimeout(() => {
-    // Если экраны всё ещё скрыты, значит OBR_READY завис в сети — пробиваем его вручную
-    if (document.getElementById("gm-view").style.display !== "block" && 
-        document.getElementById("player-setup-view").style.display !== "block") {
-        
-        console.log("Аварийный таймер сработал. Принудительно включаю интерфейс...");
-        
-        // По умолчанию открываем как PLAYER, чтобы вы или игроки могли ввести имя.
-        // Если вы тестируете под аккаунтом Мастера, замените "PLAYER" на "GM" в строке ниже, чтобы сразу видеть ГМ-панель:
-        myRole = "GM"; 
-        
-        startPluginInterface();
-    }
-}, 1000);
-
-function startPluginInterface() {
-    if (myRole === "GM") {
-        document.getElementById("gm-view").style.display = "block";
-        document.getElementById("player-setup-view").style.display = "none";
-        buildGmCharacterSelect();
-        setupGmActions();
-        updateGmViewData();
-    } else {
-        document.getElementById("gm-view").style.display = "none";
-        document.getElementById("player-setup-view").style.display = "block";
-        setupPlayerLogin();
-    }
+            if (myRole === "GM") {
+                document.getElementById("gm-view").style.display = "block";
+                document.getElementById("player-setup-view").style.display = "none";
+                buildGmCharacterSelect();
+                setupGmActions();
+                await updateGmViewData();
+                
+                OBR.room.onChange(async () => {
+                    await updateGmViewData();
+                });
+            } else {
+                document.getElementById("gm-view").style.display = "none";
+                document.getElementById("player-setup-view").style.display = "block";
+                setupPlayerLogin();
+            }
+        } catch (e) {
+            console.error("Ошибка при старте OBR:", e);
+        }
+    });
 }
+
+const checkObrInterval = setInterval(initPlugin, 100);
 
 // ==========================================
 // ЛОГИКА ДЛЯ ИГРОКА (PLAYER)
@@ -82,7 +62,9 @@ function setupPlayerLogin() {
     const loginBtn = document.getElementById("login-char-btn");
     const inputField = document.getElementById("character-name-input");
 
-    loginBtn.onclick = () => {
+    if (!loginBtn || !inputField) return;
+
+    loginBtn.onclick = async () => {
         const enteredName = inputField.value.trim();
         const matchedName = ALLOWED_CHARACTERS.find(c => c.toLowerCase() === enteredName.toLowerCase());
 
@@ -96,14 +78,19 @@ function setupPlayerLogin() {
         document.getElementById("player-setup-view").style.display = "none";
         document.getElementById("player-main-view").style.display = "block";
 
-        renderPlayerInterface();
+        await renderPlayerInterface();
+
+        OBR.room.onChange(async () => {
+            await renderPlayerInterface();
+        });
     };
 }
 
-function renderPlayerInterface() {
+async function renderPlayerInterface() {
     if (!activeCharacterName) return;
 
-    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
+    const context = await OBR.room.getMetadata();
+    const globalState = context[ROOM_METADATA_KEY] || {};
     const charState = globalState[activeCharacterName] || { classType: "none", currentResource: 0 };
 
     document.getElementById("char-display-name").innerText = activeCharacterName;
@@ -111,6 +98,7 @@ function renderPlayerInterface() {
     const resourceDisplay = document.getElementById("resource-display");
     const listContainer = document.getElementById("abilities-list");
 
+    if (!classTitle || !resourceDisplay || !listContainer) return;
     listContainer.innerHTML = "";
 
     if (charState.classType === "none" || !CLASS_DATA[charState.classType]) {
@@ -131,17 +119,14 @@ function renderPlayerInterface() {
         if (charState.currentResource < ability.cost) {
             btn.disabled = true;
         } else {
-            btn.addEventListener("click", () => {
+            btn.addEventListener("click", async () => {
                 const nextRes = Math.max(0, charState.currentResource - ability.cost);
                 
                 charState.currentResource = nextRes;
                 globalState[activeCharacterName] = charState;
 
-                // Напрямую отправляем обновленное состояние в Owlbear Rodeo
-                window.parent.postMessage({
-                    type: "OBR_ROOM_SET_METADATA",
-                    payload: { [ROOM_METADATA_KEY]: globalState }
-                }, "*");
+                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
+                await renderPlayerInterface();
             });
         }
         listContainer.appendChild(btn);
@@ -153,6 +138,7 @@ function renderPlayerInterface() {
 // ==========================================
 function buildGmCharacterSelect() {
     const select = document.getElementById("gm-char-select");
+    if (!select) return;
     select.innerHTML = "";
     ALLOWED_CHARACTERS.forEach(char => {
         const opt = document.createElement("option");
@@ -161,18 +147,19 @@ function buildGmCharacterSelect() {
         select.appendChild(opt);
     });
 
-    select.onchange = () => {
-        updateGmViewData();
+    select.onchange = async () => {
+        await updateGmViewData();
     };
 }
 
-function updateGmViewData() {
+async function updateGmViewData() {
     const select = document.getElementById("gm-char-select");
     const statusLabel = document.getElementById("gm-status-label");
     if (!select || !statusLabel) return;
 
     const targetChar = select.value;
-    const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
+    const context = await OBR.room.getMetadata();
+    const globalState = context[ROOM_METADATA_KEY] || {};
     const charState = globalState[targetChar] || { classType: "none", currentResource: 0 };
 
     if (charState.classType === "none" || !CLASS_DATA[charState.classType]) {
@@ -191,30 +178,30 @@ function setupGmActions() {
     const select = document.getElementById("gm-char-select");
 
     if (assignBtn && select) {
-        assignBtn.onclick = () => {
+        assignBtn.onclick = async () => {
             const targetChar = select.value;
             const selectedClass = document.getElementById("class-select").value;
             if (!targetChar) return;
 
             const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-            const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
+            const context = await OBR.room.getMetadata();
+            const globalState = context[ROOM_METADATA_KEY] || {};
             
             globalState[targetChar] = { classType: selectedClass, currentResource: maxRes };
 
-            window.parent.postMessage({
-                type: "OBR_ROOM_SET_METADATA",
-                payload: { [ROOM_METADATA_KEY]: globalState }
-            }, "*");
+            await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
+            await updateGmViewData();
         };
     }
 
     if (saveResBtn && select) {
-        saveResBtn.onclick = () => {
+        saveResBtn.onclick = async () => {
             const targetChar = select.value;
             const inputField = document.getElementById("manual-resource-input");
             if (!targetChar || !inputField || inputField.value === "") return;
 
-            const globalState = latestRoomMetadata[ROOM_METADATA_KEY] || {};
+            const context = await OBR.room.getMetadata();
+            const globalState = context[ROOM_METADATA_KEY] || {};
             const charState = globalState[targetChar];
 
             if (charState && charState.classType !== "none" && CLASS_DATA[charState.classType]) {
@@ -226,12 +213,9 @@ function setupGmActions() {
                 charState.currentResource = val;
                 globalState[targetChar] = charState;
 
-                window.parent.postMessage({
-                    type: "OBR_ROOM_SET_METADATA",
-                    payload: { [ROOM_METADATA_KEY]: globalState }
-                }, "*");
-
+                await OBR.room.setMetadata({ [ROOM_METADATA_KEY]: globalState });
                 inputField.value = "";
+                await updateGmViewData();
             } else {
                 alert("Сначала назначьте класс этому персонажу!");
             }

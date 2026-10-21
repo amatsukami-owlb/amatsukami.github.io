@@ -1,4 +1,4 @@
-// 2.0.7
+// 2.0.8
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -39,18 +39,22 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 
-    // 2. Проверяем пароль Мастера при клике на ОК
+        // 2. Проверяем пароль Мастера при клике на ОК
     if (submitPasswordBtn && passwordInput) {
         submitPasswordBtn.onclick = async () => {
             // ВАШ СЕКРЕТНЫЙ ПАРОЛЬ (Поменяйте "1234" на любой свой)
             if (passwordInput.value === "1234") {
                 myRole = "GM";
+                
+                // МГНОВЕННО строим выпадающий список персонажей из пула имен
+                buildGmCharacterSelect();
+                
+                // Переключаем видимость экранов
                 document.getElementById("gm-view").style.display = "block";
                 document.getElementById("player-setup-view").style.display = "none";
                 
-                // Только теперь запускаем функции ГМа внутри OBR
+                // Теперь спокойно запускаем работу с сервером OBR
                 OBR.onReady(async () => {
-                    buildGmCharacterSelect();
                     setupGmActions();
                     await updateGmViewData();
                     
@@ -64,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         };
     }
+
 
     // 3. Инициализируем вход для игрока
     setupPlayerLogin();

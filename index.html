@@ -17,6 +17,9 @@
         .token-header { border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; color: #ffc107; }
         .setup-screen { text-align: center; padding-top: 40px; }
         .gm-link-btn { background: none; border: none; color: #ffc107; text-decoration: underline; cursor: pointer; margin-top: 25px; font-size: 13px; display: inline-block; width: 100%; }
+        
+        /* Стиль сообщения об ошибке пароля */
+        .error-text { color: #ff4d4d; font-size: 13px; margin-top: 5px; display: none; }
     </style>
 </head>
 <body>
@@ -28,8 +31,18 @@
         <input type="text" id="character-name-input" placeholder="Имя персонажа...">
         <button id="login-char-btn" class="ability-btn">Войти в панель</button>
         
-        <!-- Кнопка аварийного переключения для ГМа -->
+        <!-- Кнопка вызова панели ГМа -->
         <button id="force-gm-btn" class="gm-link-btn">Открыть панель управления Мастера (GM)</button>
+        
+        <!-- СКРЫТЫЙ БЛОК ДЛЯ ВВОДА ПАРОЛЯ ГМА -->
+        <div id="gm-password-block" style="display: none; margin-top: 15px; background: #2a2a2a; padding: 12px; border-radius: 6px; border: 1px solid #444;">
+            <label style="font-size: 13px; display: block; margin-bottom: 8px;">Введите пароль Мастера:</label>
+            <div class="input-inline">
+                <input type="password" id="gm-password-input" placeholder="Пароль...">
+                <button id="submit-gm-password-btn" class="ability-btn" style="background: #28a745;">ОК</button>
+            </div>
+            <div id="gm-error-msg" class="error-text">Неверный пароль!</div>
+        </div>
     </div>
 
     <!-- ГЛАВНЫЙ ЭКРАН ИГРОКА -->

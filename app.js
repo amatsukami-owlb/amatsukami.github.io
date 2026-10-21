@@ -1,4 +1,4 @@
-// 2.0.4
+// 2.0.6
 const ALLOWED_CHARACTERS = ["Mira", "Bolt", "Grom", "Taya"];
 
 const CLASS_DATA = {
@@ -21,35 +21,30 @@ const ROOM_METADATA_KEY = "com.mygithub.ability-panel/room-state";
 let myRole = "PLAYER";
 let activeCharacterName = null; 
 
-// НАПРЯМУЮ ЗАПУСКАЕМ НА СТАРТЕ ФАЙЛА
+// Нативный запуск при чтении файла
 OBR.onReady(() => {
-    console.log("Официальный мост OBR успешно подключен! Ждем синхронизации данных...");
+    console.log("Официальный мост OBR успешно подключен!");
     
-    // Даем браузеру 100 мс, чтобы полностью подтянуть контекст роли из Owlbear Rodeo
-    setTimeout(async () => {
-        try {
-            myRole = await OBR.player.getRole();
-            console.log("Ваша определенная роль в лобби:", myRole);
-
-            if (myRole === "GM") {
-                // Если зашел Мастер — скрываем окно ввода игрока и включаем ГМ-панель
-                document.getElementById("gm-view").style.display = "block";
-                document.getElementById("player-setup-view").style.display = "none";
-                buildGmCharacterSelect();
-                setupGmActions();
+    // Инициализируем стандартный выбор для игрока
+    setupPlayerLogin();
+    
+    // Инициализируем кнопку принудительного входа для ГМа
+    const forceGmBtn = document.getElementById("force-gm-btn");
+    if (forceGmBtn) {
+        forceGmBtn.onclick = async () => {
+            myRole = "GM";
+            document.getElementById("gm-view").style.display = "block";
+            document.getElementById("player-setup-view").style.display = "none";
+            
+            buildGmCharacterSelect();
+            setupGmActions();
+            await updateGmViewData();
+            
+            OBR.room.onChange(async () => {
                 await updateGmViewData();
-                
-                OBR.room.onChange(async () => {
-                    await updateGmViewData();
-                });
-            } else {
-                // Если зашел обычный игрок
-                setupPlayerLogin();
-            }
-        } catch (e) {
-            console.error("Ошибка при инициализации OBR:", e);
-        }
-    }, 100);
+            });
+        };
+    }
 });
 
 // ==========================================

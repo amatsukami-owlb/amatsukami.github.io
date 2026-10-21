@@ -243,19 +243,27 @@ function setupGmActions() {
             if (!targetChar) return;
 
             const maxRes = selectedClass !== "none" ? CLASS_DATA[selectedClass].maxResource : 0;
-            const charState = { classType: selectedClass, currentResource: maxRes };
-
-            // ЗАЩИТА: Пошагово инициализируем ветки объекта, чтобы избежать TypeError
+            
+            // 1. Инициализируем защитные ветки объекта, если комната еще пустая
             if (!latestRoomMetadata) latestRoomMetadata = {};
             if (!latestRoomMetadata[ROOM_METADATA_KEY]) latestRoomMetadata[ROOM_METADATA_KEY] = {};
             
-            latestRoomMetadata[ROOM_METADATA_KEY][targetChar] = charState;
+            // 2. МГНОВЕННО записываем изменения в локальную память плагина (РЕАКТИВНОСТЬ)
+            latestRoomMetadata[ROOM_METADATA_KEY][targetChar] = { 
+                classType: selectedClass, 
+                currentResource: maxRes 
+            };
 
+            // 3. Сразу же принудительно перерисовываем ГМ-таблицу на экране, чтобы Мастер видел результат
+            updateGmMonitorTable();
+
+            // 4. Отправляем легальный запрос в облако Owlbear Rodeo для синхронизации с игроками
             try {
-// Отправляем легальный запрос, защищенный токеном комнаты
-await OBR.room.setMetadata(latestRoomMetadata);
-updateGmMonitorTable();
-} catch(e) { console.error("Ошибка назначения класса ГМом:", e); }
-};
-}
+                await OBR.room.setMetadata(latestRoomMetadata);
+                console.log(`Класс для ${targetChar} успешно отправлен в облако OBR!`);
+            } catch(e) { 
+                console.error("Ошибка синхронизации метаданных комнаты с сервером OBR:", e); 
+            }
+        };
+    }
 }
